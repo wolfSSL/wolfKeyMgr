@@ -1,0 +1,12 @@
+# vim:ft=automake
+# included from Top Level Makefile.am
+# All paths should be given relative to the root
+
+
+noinst_PROGRAMS+= examples/cert_client/cert_client
+examples_cert_client_cert_client_SOURCES = examples/cert_client/cert_client.c src/wkm_utils.c
+examples_cert_client_cert_client_CFLAGS       = -Isrc
+examples_cert_client_cert_client_LDFLAGS      = -Lsrc
+examples_cert_client_cert_client_LDADD        =
+examples_cert_client_cert_client_DEPENDENCIES = src/keymanager.h
+EXTRA_DIST += 

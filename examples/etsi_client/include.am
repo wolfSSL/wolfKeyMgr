@@ -1,0 +1,12 @@
+# vim:ft=automake
+# included from Top Level Makefile.am
+# All paths should be given relative to the root
+
+
+noinst_PROGRAMS+= examples/etsi_client/etsi_client
+examples_etsi_client_etsi_client_SOURCES = examples/etsi_client/etsi_client.c src/wkm_utils.c
+examples_etsi_client_etsi_client_CFLAGS       = -Isrc
+examples_etsi_client_etsi_client_LDFLAGS      = -Lsrc
+examples_etsi_client_etsi_client_LDADD        =
+examples_etsi_client_etsi_client_DEPENDENCIES = src/keymanager.h
+EXTRA_DIST += 

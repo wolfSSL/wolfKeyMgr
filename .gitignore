@@ -1,0 +1,42 @@
+# http://www.gnu.org/software/automake
+
+Makefile.in
+
+# http://www.gnu.org/software/autoconf
+
+/autom4te.cache
+/aclocal.m4
+/compile
+/configure
+/depcomp
+/install-sh
+/missing
+libtool.m4
+
+# autoconf files
+Makefile
+*.deps
+*.dirstamp
+*.o
+config*
+config/*
+stamp-h1
+*.gz
+*.log
+*.trs
+aminclude.am
+
+# misc
+tags
+cert.pid
+response.pem
+dump.der
+diff
+
+# applications
+examples/cert_client/cert_client
+examples/etsi_client/etsi_client
+libtool
+src/options.h
+settings.json
+src/wolfkeymgr

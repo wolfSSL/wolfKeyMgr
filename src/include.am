@@ -1,0 +1,14 @@
+# vim:ft=automake
+# included from Top Level Makefile.am
+# All paths should be given relative to the root
+
+
+bin_PROGRAMS+= src/wolfkeymgr
+src_wolfkeymgr_SOURCES = src/keymanager.c src/sock_mgr.c src/mod_https.c src/svc_cert.c src/svc_etsi.c src/wkm_utils.c
+src_wolfkeymgr_CFLAGS       =
+src_wolfkeymgr_LDFLAGS      = -Lsrc
+src_wolfkeymgr_LDADD        = $(LTLIBEVENT)
+src_wolfkeymgr_DEPENDENCIES =
+
+
+nobase_include_HEADERS+= src/keymanager.h src/sock_mgr.h src/mod_https.h src/svc_cert.h src/svc_etsi.h src/wkm_utils.h
