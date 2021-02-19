@@ -32,40 +32,32 @@ static enum log_level_t logLevel = WOLFKM_DEFAULT_LOG_LEVEL;
 const char* wolfKeyMgr_GetError(int err)
 {
     switch (err) {
-
-        case WOLFKM_BAD_VERIFY_SIZE:
-            return "Bad VerifyRequest size parameter";
-
         case WOLFKM_BAD_ARGS:
             return "Bad Function arguments";
-
-        case WOLFKM_BAD_HEADER_SZ:
-            return "Bad Header size parameter";
-
-        case WOLFKM_BAD_VERSION:
-            return "Bad Header Version";
-
+        case WOLFKM_BAD_MEMORY:
+            return "Bad memory allocation";
+        case WOLFKM_BAD_FILE:
+            return "Error openning file";
+        case WOLFKM_BAD_KEY:
+            return "Error loading key";
+        case WOLFKM_BAD_CERT:
+            return "Error loading cert";
+        case WOLFKM_BAD_SEND:
+            return "Error sending data";
+        case WOLFKM_NOT_COMPILED_IN:
+            return "Option not compiled in";
+        case WOLFKM_BAD_HOST:
+            return "Error resolving host name";
+        case WOLFKM_BAD_TIMEOUT:
+            return "Timeout error";
         case WOLFKM_BAD_REQUEST_TYPE:
             return "Bad Header Request Type";
 
-        case WOLFKM_BAD_X509_D2I:
-            return "Bad X509 d2i conversion";
-
-        case WOLFKM_BAD_X509_GET_NAME:
-            return "Bad X509 get name";
-
-        case WOLFKM_BAD_X509_ONELINE:
-            return "Bad X509 get name oneline";
-
-        case WOLFKM_BAD_X509_MATCH:
-            return "Bad X509 issuer name mismatch";
-
         default:
             XLOG(WOLFKM_LOG_ERROR, "Unknown error %d\n", err); 
-            return "Unknown error number";
-
+            break;
     }
-
+    return "Unknown error number";
 }
 
 /* set the log file we want to use, use stderr as default  */
@@ -147,7 +139,7 @@ void wolfKeyMgr_Log(enum log_level_t level, const char* fmt, ...)
 }
 
 /* generic API's for loading a file buffer */
-int wolfKeyMgr_LoadFileBuffer(const char* fileName, byte** buffer, word32* sz)
+int wolfLoadFileBuffer(const char* fileName, byte** buffer, word32* sz)
 {
     FILE* tmpFile;
     long fileSz;
@@ -195,7 +187,7 @@ int wolfKeyMgr_LoadFileBuffer(const char* fileName, byte** buffer, word32* sz)
 }
 
 /* return time in seconds with precision */
-double wolfKeyMgr_GetCurrentTime(void)
+double wolfGetCurrentTime(void)
 {
     struct timeval tv;
 
@@ -204,60 +196,8 @@ double wolfKeyMgr_GetCurrentTime(void)
     return (double)tv.tv_sec + (double)tv.tv_usec / 1000000;
 }
 
-char* wolfKeyMgr_UriEncode(const byte *s, char *enc)
-{
-    for (; *s; s++){
-        if (*s == '*' || *s == '-' || *s == '.' || *s == '_') {
-            char a = (char)(*s >> 4), b = (char)(*s & 0xff);
-            *enc++ = '%';
-            *enc++ = (a < 10) ? '0' + a : 'A' + a - 10;
-            *enc++ = (b < 10) ? '0' + b : 'A' + b - 10;
-        }
-        else if (*s == ' ')
-            *enc++ = '+';
-        else
-            *enc++ = *s;
-    }
-    return enc;
-}
-
-static int hex_to_char(char a, byte* out)
-{
-    if (a >= '0' && a <= '9')
-        a -= '0';
-    else if (a >= 'A' && a <= 'F')
-        a -= 'A' - 10;
-    else if (a >= 'a' && a <= 'f')
-        a -= 'a' - 'A' - 10;
-    else
-        return 0;
-    *out = (byte)a;
-    return 1;
-}
-
-byte* wolfKeyMgr_UriDecode(const char *s, byte *dec)
-{
-    byte a, b;
-    for (; *s; s++){
-        if (*s == '%' && 
-                hex_to_char((char)s[1], &a) && 
-                hex_to_char((char)s[2], &b)) {
-            *dec++ = (a << 4 | b);
-            s+=2;
-        }
-        else if (*s == '+') {
-            *dec++ = ' ';
-        }
-        else {
-            *dec++ = *s;
-        }
-    }
-    return dec;
-}
-
-
 #define LINE_LEN 16
-void wolfKeyMgr_PrintBin(const byte* buffer, word32 length)
+void wolfPrintBin(const byte* buffer, word32 length)
 {
     word32 i, sz;
     char line[(LINE_LEN * 4) + 4], *tmp;
@@ -294,24 +234,19 @@ void wolfKeyMgr_PrintBin(const byte* buffer, word32 length)
     }
 }
 
-
-
-#ifndef min
-int min(int a, int b)
+int wolfSaveFile(const char* file, byte* buffer, word32 length)
 {
-    return a < b ? a : b;
-}
-#endif
-
-/* convert short to network byte order, no alignment required */
-void c16toa(unsigned short u16, unsigned char* c)
-{
-    c[0] = (u16 >> 8) & 0xff;
-    c[1] =  u16 & 0xff;
-}
-
-/* convert opaque to 16 bit integer */
-void ato16(const unsigned char* c, unsigned short* u16)
-{
-    *u16 = (c[0] << 8) | (c[1]);
+    word32 ret;
+    FILE* raw = fopen(file, "wb");
+    if (raw == NULL) {
+        XLOG(WOLFKM_LOG_INFO, "Error saving response to %s\n", file);
+        return -1;
+    }
+    ret = (word32)fwrite(buffer, 1, length, raw);
+    fclose(raw);
+    if (ret != length) {
+        XLOG(WOLFKM_LOG_ERROR, "fwrite failed\n");
+        return -1;
+    }
+    return 0;
 }

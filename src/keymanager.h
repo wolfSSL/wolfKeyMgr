@@ -22,18 +22,21 @@
 #ifndef KEYMANAGER_H
 #define KEYMANAGER_H
 
-/* Key Manager Headers */
-#include "wkm_types.h"
-#include "sock_mgr.h"
-#include "wkm_utils.h"
-#include "svc_cert.h"
-#include "svc_etsi.h"
-
-
 /* wolfssl headers */
 #include <wolfssl/options.h>
 #include <wolfssl/wolfcrypt/settings.h>
 
+
+/* Key Manager Headers */
+#include "wkm_types.h"
+#include "wkm_utils.h"
+#include "mod_http.h"
+#include "mod_etsi.h"
+#include "sock_mgr.h"
+#include "svc_etsi.h"
+
+
+/* wolfssl headers */
 #include <wolfssl/wolfcrypt/ecc.h>
 #include <wolfssl/wolfcrypt/sha256.h>
 #include <wolfssl/wolfcrypt/asn.h>
@@ -42,7 +45,7 @@
 
 /* string constants */
 #define WOLFKM_DEFAULT_LOG_NAME     NULL
-#define WOLFKM_DEFAULT_PID          "./cert.pid"
+#define WOLFKM_DEFAULT_PID          "./wolfkeymgr.pid"
 
 
 /* program constants */

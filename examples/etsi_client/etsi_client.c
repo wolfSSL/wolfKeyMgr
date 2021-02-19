@@ -20,88 +20,30 @@
  */
 
 #include "etsi_client.h"
+#include "mod_etsi.h"
 
-#include <wolfssl/options.h>
-#include <wolfssl/wolfcrypt/asn_public.h>
-#include <wolfssl/wolfcrypt/ecc.h>
-#include <wolfssl/wolfcrypt/sha256.h>
-#include <wolfssl/ssl.h>
-#include <wolfssl/test.h>
+#define WOLFKM_ETST_CLIENT_DEF_TIMEOUT_SEC 10
 
-#include "src/keymanager.h"
-#include "src/svc_etsi.h"
+#ifndef EX_USAGE
+#define EX_USAGE 2
+#endif
 
-static pthread_t*  tids;          /* our threads */
-static int         poolSize = 0;  /* number of threads */
-static word16      port;          /* peer port */
-static const char* host =  WOLFKM_DEFAULT_HOST;  /* peer host */
+#ifndef EXIT_FAILURE
+#define EXIT_FAILURE 1
+#endif
 
-static WOLFSSL_CTX* sslCtx;       /* ssl context factory */
-static int usingTLS = 1;          /* ssl is on by default */
-
-static const char* kEtsiGet1 = "GET /.well-known/enterprise-transport-security/keys?fingerprints=%s HTTP/1.1\r\nAccept: application/pkcs8\r\n";
-//static const char* kEtsiGet2 = "GET /.well-known/enterprise-transport-security/keys?groups=%s&certs=%s HTTP/1.1\r\nAccept: application/pkcs8\r\n";
-static const char* kEtsiPush = "PUT /enterprise-transport-security/keys HTTP/1.1\r\nAccept: application/pkcs8\r\n";
+/* Certificate for ETSI server or signer CA */
+#define WOLFKM_ETSISVC_CERT    "./certs/test-cert.pem"
 
 
-/* return sent bytes or < 0 on error */
-static int DoClientSend(int sockfd, WOLFSSL* ssl, const byte* p, int len)
-{
-    int ret = -1;
-
-    if (usingTLS == 0) {
-        ret = send(sockfd, p, len, 0);
-    } else {
-        ret = wolfSSL_write(ssl, p, len);
-        if (ret < 0) {
-            int err = wolfSSL_get_error(ssl, 0);
-            XLOG(WOLFKM_LOG_ERROR, "DoClientSend error %d: %s\n",
-                                 err, wolfSSL_ERR_reason_error_string(err));
-            if (err < 0) ret = err;
-        }
-    }
-
-    return ret;
-}
-
-
-/* return bytes read or < 0 on error */
-static int DoClientRead(int sockfd, WOLFSSL* ssl, byte* p, int len)
-{
-    int ret;
-
-    if (usingTLS == 0) {
-        ret = recv(sockfd, p, len, 0);
-    } else {
-        ret = wolfSSL_read(ssl, p, len);
-        if (ret < 0) {
-            int err = wolfSSL_get_error(ssl, 0);
-            XLOG(WOLFKM_LOG_ERROR, "DoClientRead error %d: %s\n",
-                                 err, wolfSSL_ERR_reason_error_string(err));
-            if (err < 0) ret = err;
-        }
-    }
-
-    return ret;
-}
-
-
-/* create new ssl object */
-static WOLFSSL* NewSSL(int sockfd)
-{
-    WOLFSSL* ssl;
-
-    if (usingTLS == 0) return NULL;
-
-    ssl = wolfSSL_new(sslCtx);
-    if (ssl == NULL) {
-        XLOG(WOLFKM_LOG_ERROR, "wolfSSL_new memory failure");
-        exit(EXIT_FAILURE);
-    }
-    wolfSSL_set_fd(ssl, sockfd);
-
-    return ssl;
-}
+typedef struct WorkThreadInfo {
+    const char* host;
+    int requests;
+    int timeoutSec;
+    int useGet;
+    char* saveResp;
+    word16 port;
+} WorkThreadInfo;
 
 
 /* for error response in errorMode, 0 on success */
@@ -113,99 +55,58 @@ static int DoErrorMode(void)
 }
 
 /* ETSI Asymmetric Key Request */
-static int DoKeyRequest(SOCKET_T sockfd, WOLFSSL* ssl, int useGet, char* saveResp)
+static int DoKeyRequest(EtsiClientCtx* client, int useGet, char* saveResp,
+    int timeoutSec)
 {
     int     ret;
-    int     requestSz = 0, responseSz;
-    byte    tmp[4096]; /* buffer large enough for private keys */
-    byte*   request = tmp;  /* use to build header in front */
-    int     sent = 0;
+    EtsiClientType type;
+    byte    response[ETSI_MAX_RESPONSE_SZ];
+    word32  responseSz;
     ecc_key key;
 
-    /* Build HTTP ETSI request */
     if (useGet) {
-        /* kEtsiGet1 / kEtsiGet2 */
-        requestSz = (int)strlen(kEtsiGet1);
-        memcpy(request, kEtsiGet1, requestSz);
+        type = ETSI_CLIENT_GET;
     }
     else {
-        requestSz = (int)strlen(kEtsiPush);
-        memcpy(request, kEtsiPush, requestSz);
+        type = ETSI_CLIENT_PUSH;
     }
-
-    while (sent < requestSz) {
-        ret = DoClientSend(sockfd, ssl, tmp + sent, requestSz - sent);
-        if (ret < 0) {
-            XLOG(WOLFKM_LOG_INFO, "DoClientSend failed: %d\n", ret);
-            return ret;
-        }
-        sent += ret;
-        if (sent == requestSz)
-            break;
-    }
-    XLOG(WOLFKM_LOG_INFO, "Sent %s request\n", useGet ? "single" : "push");
 
     /* for push run until error */
     do {
-        ret = DoClientRead(sockfd, ssl, tmp, sizeof(tmp));
-        if (ret < 0) {
-            XLOG(WOLFKM_LOG_ERROR, "DoClientRead failed: %d\n", ret);
-            return ret;
-        }
-        else if (ret == 0) {
-            XLOG(WOLFKM_LOG_ERROR, "peer closed: %d\n", ret);
-            return -1;
-        }
-        
-        /* Process asymmetric key package response */
-        responseSz = ret;
-        XLOG(WOLFKM_LOG_INFO, "Got ETSI response sz = %d\n", responseSz);
-
-        /* Parsing key package */
-        ret = wc_ecc_init(&key);
+        responseSz = sizeof(response);
+        ret = wolfEtsiClientGet(client, type, NULL, timeoutSec,
+            response, &responseSz);
         if (ret == 0) {
-            word32 idx = 0;
-            byte pubX[32*2+1], pubY[32*2+1];
-            word32 pubXLen = sizeof(pubX), pubYLen = sizeof(pubY);
+            ret = wc_ecc_init(&key);
+            if (ret == 0) {
+                ret = wolfEtsiLoadKey(&key, response, responseSz);
+                if (ret == 0) {
+                    byte pubX[32*2+1], pubY[32*2+1];
+                    word32 pubXLen = sizeof(pubX), pubYLen = sizeof(pubY);
+                    ret = wc_ecc_export_ex(&key,
+                        pubX, &pubXLen,
+                        pubY, &pubYLen, 
+                        NULL, NULL, WC_TYPE_HEX_STR);
+                    if (ret == 0) {
+                        XLOG(WOLFKM_LOG_INFO, "Pub X: %s\n", pubX);
+                        XLOG(WOLFKM_LOG_INFO, "Pub Y: %s\n", pubY);
 
-            ret = wc_EccPrivateKeyDecode(tmp, &idx, &key, responseSz);
-            if (ret == 0) {
-                ret = wc_ecc_export_ex(&key, pubX, &pubXLen, pubY, &pubYLen, 
-                    NULL, NULL, WC_TYPE_HEX_STR);
+                        if (saveResp) {
+                            wolfSaveFile(saveResp, response, responseSz);
+                        }
+                    }
+                }
+                wc_ecc_free(&key);
             }
-            if (ret == 0) {
-                XLOG(WOLFKM_LOG_INFO, "Pub X: %s\n", pubX);
-                XLOG(WOLFKM_LOG_INFO, "Pub Y: %s\n", pubY);
-            }
-            wc_ecc_free(&key);
         }
+
         if (ret != 0) {
-            XLOG(WOLFKM_LOG_INFO, "ECC Key Parse Failed %d\n", ret);
-        }
-
-        if (saveResp) {
-            FILE* raw = fopen(saveResp, "wb");
-            if (raw == NULL) {
-                XLOG(WOLFKM_LOG_INFO, "Error saving response to %s\n", saveResp);
-                return -1;
-            }
-            requestSz = (int)fwrite(tmp, 1, responseSz, raw);
-            fclose(raw);
-            if (ret != requestSz) {
-                XLOG(WOLFKM_LOG_ERROR, "fwrite failed\n");
-                return -1;
-            }
+            XLOG(WOLFKM_LOG_INFO, "ETSI Key Request Failed! %d\n", ret);
         }
     } while (!useGet && ret == 0);
 
-    return 0;
+    return ret;
 }
-
-typedef struct WorkThreadInfo {
-    int requests;
-    int useGet;
-    char* saveResp;
-} WorkThreadInfo;
 
 /* Do requests per thread, persistent connection */
 static void* DoRequests(void* arg)
@@ -213,68 +114,50 @@ static void* DoRequests(void* arg)
     int i;
     int ret = -1;
     WorkThreadInfo* info = (WorkThreadInfo*)arg;
-    WOLFSSL* ssl = NULL;
-
-    SOCKET_T sockfd;
-    tcp_connect(&sockfd, host, port, 0, 0, NULL);
-    ssl = NewSSL(sockfd);
-
-    for (i = 0; i < info->requests; i++) {
-        ret = DoKeyRequest(sockfd, ssl, info->useGet, info->saveResp);
-        if (ret != 0) {
-            XLOG(WOLFKM_LOG_ERROR, "DoKeyRequest failed: %d\n", ret);
-            exit(EXIT_FAILURE);
+    EtsiClientCtx* client = wolfEtsiClientNew();
+    if (client == NULL) {
+        XLOG(WOLFKM_LOG_ERROR, "Error creating ETSI client %d!\n", ret);
+        return NULL;
+    }
+    ret = wolfEtsiClientAddCA(client, WOLFKM_ETSISVC_CERT);
+    if (ret != 0) {
+        XLOG(WOLFKM_LOG_ERROR, "Error loading ETSI server CA %d!\n", ret);
+    }
+    ret = wolfEtsiClientConnect(client, info->host, info->port, 
+        info->timeoutSec);
+    if (ret == 0) {
+        for (i = 0; i < info->requests; i++) {
+            ret = DoKeyRequest(client, info->useGet, info->saveResp,
+                info->timeoutSec);
+            if (ret != 0) {
+                XLOG(WOLFKM_LOG_ERROR, "DoKeyRequest failed: %d\n", ret);
+                break;
+            }
         }
     }
 
-    CloseSocket(sockfd);
-    wolfSSL_free(ssl);
+    wolfEtsiClientFree(client);
 
     return NULL;
 }
 
 
-/* setup SSL */
-static int InitClientTLS(void)
-{
-    int ret;
-
-#if 0
-    wolfSSL_Debugging_ON();
-#endif
-    wolfSSL_Init();
-
-    sslCtx = wolfSSL_CTX_new(wolfTLSv1_3_client_method());
-    if (sslCtx == NULL) {
-        XLOG(WOLFKM_LOG_ERROR, "Can't alloc TLS 1.3 context");
-        return WOLFKM_BAD_MEMORY;
-    }
-
-    ret = wolfSSL_CTX_load_verify_locations(sslCtx, WOLFKM_ETSISVC_CERT, NULL);
-    if (ret != WOLFSSL_SUCCESS) {
-        XLOG(WOLFKM_LOG_ERROR, "Can't load TLS CA etsi into context. Error: %s (%d)\n", 
-            wolfSSL_ERR_reason_error_string(ret), ret);
-        wolfSSL_CTX_free(sslCtx); sslCtx = NULL;
-        return ret;
-    }
-    return 0;
-}
-
 
 /* usage help */
 static void Usage(void)
 {
-    printf("%s %s\n", "client", PACKAGE_VERSION);
+    printf("%s %s\n",  "etsi_client", PACKAGE_VERSION);
     printf("-?          Help, print this usage\n");
     printf("-e          Error mode, force error response\n");
     printf("-h <str>    Host to connect to, default %s\n", WOLFKM_DEFAULT_HOST);
-    printf("-p <num>    Port to connect to, default %s\n", WOLFKM_ETSISVC_PORT);
+    printf("-p <num>    Port to connect to, default %s\n", WOLFKM_DEFAULT_ETSISVC_PORT);
     printf("-t <num>    Thread pool size (stress test), default  %d\n", 0);
     printf("-l <num>    Log Level, default %d\n", WOLFKM_DEFAULT_LOG_LEVEL);
     printf("-r <num>    Requests per thread, default %d\n",
                                                           WOLFKM_DEFAULT_REQUESTS);
     printf("-f <file>   <file> to store ETSI response\n");
     printf("-g          Use HTTP GET (default is Push with HTTP PUT)\n");
+    printf("-s <sec>    Timeout seconds (default %d)\n", WOLFKM_ETST_CLIENT_DEF_TIMEOUT_SEC);
 
 }
 
@@ -283,41 +166,42 @@ int main(int argc, char** argv)
 {
     int         ch, i;
     int         ret;
-    char*       saveResp  = NULL;        /* save response */
-    int         requests = WOLFKM_DEFAULT_REQUESTS;
     int         errorMode = 0;
-    int         useGet = 0;
-    SOCKET_T    sockfd;
-    WOLFSSL*    ssl = NULL;
+    pthread_t*  tids;          /* our threads */
+    int         poolSize = 0;  /* number of threads */
     enum log_level_t logLevel = WOLFKM_DEFAULT_LOG_LEVEL;
     WorkThreadInfo info;
 
-    port       = atoi(WOLFKM_ETSISVC_PORT);
+    memset(&info, 0, sizeof(info));
+    info.requests = WOLFKM_DEFAULT_REQUESTS;
+    info.host = WOLFKM_DEFAULT_HOST;
+    info.timeoutSec = WOLFKM_ETST_CLIENT_DEF_TIMEOUT_SEC;
+    info.port = atoi(WOLFKM_DEFAULT_ETSISVC_PORT);
 
 #ifdef DISABLE_SSL
     usingTLS = 0;    /* can only disable at build time */
 #endif
 
     /* argument processing */
-    while ((ch = getopt(argc, argv, "?eh:p:t:l:r:f:g")) != -1) {
+    while ((ch = getopt(argc, argv, "?eh:p:t:l:r:f:gs:")) != -1) {
         switch (ch) {
             case '?' :
                 Usage();
                 exit(EX_USAGE);
             case 'h' :
-                host = optarg;
+                info.host = optarg;
                 break;
             case 'f' :
-                saveResp = optarg;
+                info.saveResp = optarg;
                 break;
             case 'p' :
-                port = atoi(optarg);
+                info.port = atoi(optarg);
                 break;
             case 't' :
                 poolSize = atoi(optarg);
                 break;
             case 'r' :
-                requests = atoi(optarg);
+                info.requests = atoi(optarg);
                 break;
             case 'e' :
                 errorMode = 1;
@@ -330,7 +214,10 @@ int main(int argc, char** argv)
                 }
                 break;
             case 'g':
-                useGet = 1;
+                info.useGet = 1;
+                break;
+            case 's' :
+                info.timeoutSec = atoi(optarg);
                 break;
 
             default:
@@ -345,32 +232,14 @@ int main(int argc, char** argv)
 
     if (errorMode)
         return DoErrorMode();
-
-    if (usingTLS) {
-        ret = InitClientTLS();
-        if (ret != 0) {
-            exit(EXIT_FAILURE);
-        }
-    }
-
+    
     if (poolSize == 0) {
-        tcp_connect(&sockfd, host, port, 0, 0, NULL);
-        ssl = NewSSL(sockfd);
-        XLOG(WOLFKM_LOG_INFO, "Connected to etsi service\n");
-        
-        /* Do a etsi test */
-        ret = DoKeyRequest(sockfd, ssl, useGet, saveResp);
-        if (ret != 0) {
-            XLOG(WOLFKM_LOG_ERROR, "DoKeyRequest failed: %d\n", ret);
-            exit(EXIT_FAILURE);
-        }
-        XLOG(WOLFKM_LOG_INFO, "First ETSI test worked!\n");
-
-        CloseSocket(sockfd);
-        wolfSSL_free(ssl);
+        info.requests = 1; /* only 1 request for this */
+        DoRequests(&info);
     }
     else {
         /* stress testing with a thread pool */
+        wolfEtsiClientInit();
 
         /* thread id holder */
         tids = calloc(poolSize, sizeof(pthread_t));
@@ -378,11 +247,6 @@ int main(int argc, char** argv)
             XLOG(WOLFKM_LOG_ERROR, "calloc tids failed");
             exit(EXIT_FAILURE);
         }
-
-        /* setup worker thread info */
-        info.requests = requests;
-        info.useGet = useGet;
-        info.saveResp = saveResp;
 
         /* create workers */
         for (i = 0; i < poolSize; i++) {
@@ -399,10 +263,8 @@ int main(int argc, char** argv)
         }
 
         free(tids);
+        wolfEtsiClientCleanup();
     }
-
-    wolfSSL_CTX_free(sslCtx);
-    wolfSSL_Cleanup();
 
     return 0;
 }

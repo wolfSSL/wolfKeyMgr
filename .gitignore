@@ -25,18 +25,19 @@ stamp-h1
 *.log
 *.trs
 aminclude.am
+*.lo
+*.la
+*.libs
 
 # misc
 tags
-cert.pid
+wolfkeymgr.pid
 response.pem
 dump.der
 diff
 
 # applications
-examples/cert_client/cert_client
+src/wolfkeymgr
 examples/etsi_client/etsi_client
 libtool
 src/options.h
-settings.json
-src/wolfkeymgr

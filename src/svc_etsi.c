@@ -20,13 +20,10 @@
  */
 
 #include "keymanager.h"
-#include "mod_https.h"
+#include "mod_http.h"
+#include "mod_etsi.h"
 
 #ifdef WOLFKM_ETSI_SERVICE
-
-#ifndef HAVE_ECC
-    #error This service requires ECC support
-#endif
 
 /* shared context for worker threads */
 typedef struct etsiSvcCtx {
@@ -64,8 +61,8 @@ static svcInfo etsiService = {
 /* worker thread objects */
 typedef struct etsiSvcThread {
     word32  index;
-    byte*   keyBuf;
-    word32  keySz;
+    byte*   httpRspBuf;
+    word32  httpRspSz;
 } etsiSvcThread;
 
 typedef struct etsiSvcConn {
@@ -88,7 +85,7 @@ static int GenNewKey(etsiSvcCtx* svcCtx)
         /* TODO: Support other key sizes and curves */
         ret = wc_ecc_make_key_ex(&svcCtx->rng, 32, &svcCtx->key, ECC_SECP256R1);
         if (ret == 0) {
-            svcCtx->last = wolfKeyMgr_GetCurrentTime();
+            svcCtx->last = wolfGetCurrentTime();
             svcCtx->index++;
         }
         else {
@@ -108,28 +105,42 @@ static int GenNewKey(etsiSvcCtx* svcCtx)
 static int SetupKeyPackage(etsiSvcCtx* svcCtx, etsiSvcThread* etsiThread)
 {
     int ret = 0;
-    byte tmp[4096];
-    word32 tmpSz = sizeof(tmp);
+    byte rsp[ETSI_MAX_RESPONSE_SZ], keyBuf[ECC_BUFSIZE];
+    word32 rspSz = (word32)sizeof(rsp), keyBufSz = (word32)sizeof(keyBuf);
+    HttpHeader headers[2];
+    headers[0].type = HTTP_HDR_CONTENT_TYPE;
+    headers[0].string = "application/pkcs8";
+    headers[1].type = HTTP_HDR_CONNECTION;
+    headers[1].string = "Keep-Alive";
 
     pthread_mutex_lock(&svcCtx->lock);
     if (etsiThread->index != svcCtx->index) {
         /* Export as DER IETF RFC 5915 */
-        ret = wc_EccKeyToDer(&svcCtx->key, tmp, tmpSz);
+        ret = wc_EccKeyToDer(&svcCtx->key, keyBuf, keyBufSz);
         if (ret < 0) {
+            pthread_mutex_unlock(&svcCtx->lock);
             XLOG(WOLFKM_LOG_ERROR, "wc_EccKeyToDer failed %d\n", ret);
             return WOLFKM_BAD_KEY;
         }
-        tmpSz = ret;
-        ret = 0;
+        keyBufSz = ret;
+
+        /* Wrap in HTTP server response */
+        ret = wolfHttpServer_EncodeResponse(0, NULL, rsp, &rspSz, headers, 
+            sizeof(headers)/sizeof(HttpHeader), keyBuf, keyBufSz);
+        if (ret != 0) {
+            pthread_mutex_unlock(&svcCtx->lock);
+            XLOG(WOLFKM_LOG_ERROR, "Error encoding HTTP response: %d\n", ret);
+            return ret;
+        }
 
         /* allocate actual size and store in thread */
-        if (etsiThread->keyBuf) {
-            free(etsiThread->keyBuf);
+        if (etsiThread->httpRspBuf) {
+            free(etsiThread->httpRspBuf);
         }
-        etsiThread->keyBuf = malloc(tmpSz);
-        if (etsiThread->keyBuf) {
-            etsiThread->keySz = tmpSz;
-            memcpy(etsiThread->keyBuf, tmp, tmpSz);
+        etsiThread->httpRspBuf = malloc(rspSz);
+        if (etsiThread->httpRspBuf) {
+            etsiThread->httpRspSz = rspSz;
+            memcpy(etsiThread->httpRspBuf, rsp, rspSz);
         }
         else {
             ret = WOLFKM_BAD_MEMORY;
@@ -176,14 +187,14 @@ int wolfEtsiSvc_DoResponse(svcConn* conn)
     }
     etsiThread = (etsiSvcThread*)conn->svcThreadCtx;
 
-    if (etsiThread->keyBuf == NULL || etsiThread->keySz == 0) {
-        XLOG(WOLFKM_LOG_ERROR, "ETSI Key not found!\n");
+    if (etsiThread->httpRspBuf == NULL || etsiThread->httpRspSz == 0) {
+        XLOG(WOLFKM_LOG_ERROR, "ETSI HTTP Response / Key not found!\n");
         return WOLFKM_BAD_KEY;
     }
 
     /* send already setup key */
-    memcpy(conn->request, etsiThread->keyBuf, etsiThread->keySz);
-    conn->requestSz = etsiThread->keySz;
+    memcpy(conn->request, etsiThread->httpRspBuf, etsiThread->httpRspSz);
+    conn->requestSz = etsiThread->httpRspSz;
 
     /* send response, which is in the reused request buffer */
     ret = wolfKeyMgr_DoSend(conn, (byte*)conn->request, conn->requestSz);
@@ -191,7 +202,7 @@ int wolfEtsiSvc_DoResponse(svcConn* conn)
         XLOG(WOLFKM_LOG_ERROR, "ETSI DoSend failed: %d\n", ret);
         return WOLFKM_BAD_SEND;
     }
-    XLOG(WOLFKM_LOG_INFO, "Sent ETSI Response\n");
+    XLOG(WOLFKM_LOG_INFO, "Sent ETSI Response (%d bytes)\n", conn->requestSz);
 
     return ret;
 }
@@ -207,24 +218,28 @@ int wolfEtsiSvc_DoRequest(svcConn* conn)
         return WOLFKM_BAD_ARGS;
     }
 
-    XLOG(WOLFKM_LOG_INFO, "Got ETSI Request\n");
+    XLOG(WOLFKM_LOG_INFO, "Got ETSI Request (%d bytes)\n", conn->requestSz);
 
-    conn->svcConnCtx = malloc(sizeof(etsiSvcConn));
     if (conn->svcConnCtx == NULL) {
-        return WOLFKM_BAD_MEMORY;
+        /* Creating connection context */
+        XLOG(WOLFKM_LOG_INFO, "Creating connection context\n");
+        conn->svcConnCtx = malloc(sizeof(etsiSvcConn));
+        if (conn->svcConnCtx == NULL) {
+            return WOLFKM_BAD_MEMORY;
+        }
     }
     etsiConn = (etsiSvcConn*)conn->svcConnCtx;
 
-    ret = wolfKeyMgr_HttpParse(&etsiConn->req, (char*)conn->request,
+    ret = wolfHttpServer_ParseRequest(&etsiConn->req, conn->request,
         conn->requestSz);
     if (ret < 0) {
-        XLOG(WOLFKM_LOG_ERROR, "ETSI HTTP Parse failed: %d\n", ret);
+        XLOG(WOLFKM_LOG_ERROR, "ETSI HTTP Server Parse failed: %d\n", ret);
         return WOLFKM_BAD_REQUEST_TYPE;
     }
-    wolfKeyMgr_HttpReqDump(&etsiConn->req);
+    wolfHttpRequestPrint(&etsiConn->req);
 
     /* Perform URI decode? */
-    wolfKeyMgr_UriDecode(etsiConn->req.uri, (byte*)etsiConn->req.uri);
+    wolfHttpUriDecode(etsiConn->req.uri, (byte*)etsiConn->req.uri);
 
     /* Send Response */
     return wolfEtsiSvc_DoResponse(conn);
@@ -280,7 +295,8 @@ int wolfEtsiSvc_HandleTimeout(svcConn* conn)
 
     etsiConn = (etsiSvcConn*)conn->svcConnCtx;
 
-    if (etsiConn->req.type == HTTP_METHOD_PUT) {
+    /* if we received an HTTP request then keep open */
+    if (etsiConn->req.type != HTTP_METHOD_UNKNOWN) {
         return 0; /* keep open (return non-zero value to close connection) */
     }
     return 1; /* close connection */
@@ -313,8 +329,8 @@ void wolfEtsiSvc_WorkerFree(svcInfo* svc, void* svcThreadCtx)
     if (svc == NULL || svcThreadCtx == NULL)
         return;
 
-    if (etsiThread->keyBuf) {
-        free(etsiThread->keyBuf);
+    if (etsiThread->httpRspBuf) {
+        free(etsiThread->httpRspBuf);
     }
     (void)svcCtx;
 

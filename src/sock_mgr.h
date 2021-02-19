@@ -34,7 +34,7 @@
 #include <event2/buffer.h>
 #include <event2/dns.h>
 
-#include "visibility.h"
+#include "wkm_types.h"
 
 /* wolfssl headers */
 #include <wolfssl/options.h>
@@ -180,24 +180,24 @@ typedef struct KeyManager {
 
 
 /* Key Manager Functions */
-int  wolfKeyMgr_MakeDaemon(int chDir);
-void wolfKeyMgr_SetMaxFiles(int max);
-void wolfKeyMgr_SetCore(void);
-void wolfKeyMgr_SignalCb(evutil_socket_t fd, short event, void* arg);
-int  wolfKeyMgr_SigIgnore(int sig);
-void wolfKeyMgr_ShowStats(svcInfo* svc);
-FILE* wolfKeyMgr_GetPidFile(const char* pidFile, pid_t pid);
-void wolfKeyMgr_SetTimeout(svcInfo* svc, word32 timeoutSec);
+WOLFKM_LOCAL int  wolfKeyMgr_MakeDaemon(int chDir);
+WOLFKM_LOCAL void wolfKeyMgr_SetMaxFiles(int max);
+WOLFKM_LOCAL void wolfKeyMgr_SetCore(void);
+WOLFKM_LOCAL void wolfKeyMgr_SignalCb(evutil_socket_t fd, short event, void* arg);
+WOLFKM_LOCAL int  wolfKeyMgr_SigIgnore(int sig);
+WOLFKM_LOCAL void wolfKeyMgr_ShowStats(svcInfo* svc);
+WOLFKM_LOCAL FILE* wolfKeyMgr_GetPidFile(const char* pidFile, pid_t pid);
+WOLFKM_LOCAL void wolfKeyMgr_SetTimeout(svcInfo* svc, word32 timeoutSec);
 
-int wolfKeyMgr_AddListeners(svcInfo* svc, int af_v, char* listenPort, struct event_base* mainBase);
-int wolfKeyMgr_ServiceInit(svcInfo* svc, int numThreads);
-void wolfKeyMgr_ServiceCleanup(svcInfo* svc);
-void wolfKeyMgr_FreeListeners(void);
+WOLFKM_LOCAL int wolfKeyMgr_AddListeners(svcInfo* svc, int af_v, char* listenPort, struct event_base* mainBase);
+WOLFKM_LOCAL int wolfKeyMgr_ServiceInit(svcInfo* svc, int numThreads);
+WOLFKM_LOCAL void wolfKeyMgr_ServiceCleanup(svcInfo* svc);
+WOLFKM_LOCAL void wolfKeyMgr_FreeListeners(void);
 
-int wolfKeyMgr_DoSend(svcConn* conn, byte* resp, int respSz);
-int wolfKeyMgr_NotifyAllClients(svcInfo* svc);
-int wolfKeyMgr_LoadKeyFile(svcInfo* svc, const char* fileName, int fileType, const char* password);
-int wolfKeyMgr_LoadCertFile(svcInfo* svc, const char* fileName, int fileType);
+WOLFKM_LOCAL int wolfKeyMgr_DoSend(svcConn* conn, byte* resp, int respSz);
+WOLFKM_LOCAL int wolfKeyMgr_NotifyAllClients(svcInfo* svc);
+WOLFKM_LOCAL int wolfKeyMgr_LoadKeyFile(svcInfo* svc, const char* fileName, int fileType, const char* password);
+WOLFKM_LOCAL int wolfKeyMgr_LoadCertFile(svcInfo* svc, const char* fileName, int fileType);
 
 
 

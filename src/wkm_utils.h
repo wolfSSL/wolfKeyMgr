@@ -25,26 +25,46 @@
 #include "wkm_types.h"
 
 
-/* Helper / Utility Functions */
-const char* wolfKeyMgr_GetError(int err);
-const char* wolfKeyMgr_GetLogLevel(enum log_level_t level);
-void wolfKeyMgr_Log(enum log_level_t, const char* fmt, ...) ATT_STRFUNC;
-void wolfKeyMgr_SetLogFile(const char* fileName, int daemon, enum log_level_t level);
-
-char* wolfKeyMgr_UriEncode(const byte *s, char *enc);
-byte* wolfKeyMgr_UriDecode(const char *s, byte *dec);
-double wolfKeyMgr_GetCurrentTime(void);
-
-int wolfKeyMgr_LoadFileBuffer(const char* fileName, byte** buffer, word32* sz);
-void wolfKeyMgr_PrintBin(const byte* buffer, word32 length);
-
-/* misc functions */
-void c16toa(unsigned short, unsigned char*);
-void ato16(const unsigned char*, unsigned short*);
-#if !defined(min) && !defined(WOLFSSL_HAVE_MIN)
-int min(int a, int b);
+#ifdef __GNUC__
+#define ATT_STRFUNC __attribute__((format(printf, 2, 3)))
+#else
+#define ATT_STRFUNC
 #endif
 
+
+/* Helper / Utility Functions */
+WOLFKM_API const char* wolfKeyMgr_GetError(int err);
+WOLFKM_API const char* wolfKeyMgr_GetLogLevel(enum log_level_t level);
+WOLFKM_API void wolfKeyMgr_Log(enum log_level_t, const char* fmt, ...) ATT_STRFUNC;
+WOLFKM_API void wolfKeyMgr_SetLogFile(const char* fileName, int daemon, enum log_level_t level);
+
+WOLFKM_API double wolfGetCurrentTime(void);
+
+WOLFKM_API int wolfLoadFileBuffer(const char* fileName, byte** buffer, word32* sz);
+WOLFKM_API void wolfPrintBin(const byte* buffer, word32 length);
+WOLFKM_API int wolfSaveFile(const char* file, byte* buffer, word32 length);
+
+
+/* misc functions */
+#if !defined(min) && !defined(WOLFSSL_HAVE_MIN)
+static inline int min(int a, int b)
+{
+    return a < b ? a : b;
+}
+#endif
+
+/* convert short to network byte order, no alignment required */
+static inline void c16toa(unsigned short u16, unsigned char* c)
+{
+    c[0] = (u16 >> 8) & 0xff;
+    c[1] =  u16 & 0xff;
+}
+
+/* convert opaque to 16 bit integer */
+static inline void ato16(const unsigned char* c, unsigned short* u16)
+{
+    *u16 = (c[0] << 8) | (c[1]);
+}
 
 
 #endif /* WOLFKM_UTILS_H */

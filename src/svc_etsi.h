@@ -32,16 +32,16 @@ extern "C" {
 #define WOLFKM_ETSISVC_CERT         "./certs/test-cert.pem"
 
 
-svcInfo* wolfEtsiSvc_Init(struct event_base* mainBase, word32 timeoutSec);
-void wolfEtsiSvc_Cleanup(svcInfo* svc);
+WOLFKM_LOCAL svcInfo* wolfEtsiSvc_Init(struct event_base* mainBase, word32 timeoutSec);
+WOLFKM_LOCAL void wolfEtsiSvc_Cleanup(svcInfo* svc);
 
-int wolfEtsiSvc_WorkerInit(svcInfo* svc, void** svcThreadCtx);
-void wolfEtsiSvc_WorkerFree(svcInfo* svc, void* svcThreadCtx);
+WOLFKM_LOCAL int wolfEtsiSvc_WorkerInit(svcInfo* svc, void** svcThreadCtx);
+WOLFKM_LOCAL void wolfEtsiSvc_WorkerFree(svcInfo* svc, void* svcThreadCtx);
 
-int wolfEtsiSvc_DoRequest(svcConn* conn);
-int wolfEtsiSvc_HandleTimeout(svcConn* conn);
-int wolfEtsiSvc_DoNotify(svcConn* conn);
-void wolfEtsiSvc_ConnClose(svcConn* conn);
+WOLFKM_LOCAL int wolfEtsiSvc_DoRequest(svcConn* conn);
+WOLFKM_LOCAL int wolfEtsiSvc_HandleTimeout(svcConn* conn);
+WOLFKM_LOCAL int wolfEtsiSvc_DoNotify(svcConn* conn);
+WOLFKM_LOCAL void wolfEtsiSvc_ConnClose(svcConn* conn);
 
 #ifdef __cplusplus
 }

@@ -32,27 +32,30 @@
 #include <wolfssl/options.h>
 #include <wolfssl/wolfcrypt/settings.h>
 #include <wolfssl/wolfcrypt/types.h>
+#include <wolfssl/wolfcrypt/ecc.h>
+
+
+#ifdef WOLFKM_ETSI_SERVICE
+    #ifndef HAVE_ECC
+        #error This service requires ECC support
+    #endif
+#endif
+
 
 /* key manager errors */
 enum  {
-    WOLFKM_BAD_VERIFY_SIZE   = -1001,
-    WOLFKM_BAD_ARGS          = -1002,
+    WOLFKM_BAD_ARGS          = -1001,
     WOLFKM_BAD_MEMORY        = -1002,
     WOLFKM_BAD_FILE          = -1003,
     WOLFKM_BAD_KEY           = -1004,
     WOLFKM_BAD_CERT          = -1005,
     WOLFKM_BAD_SEND          = -1006,
-    WOLFKM_BAD_LISTENER      = -1007,
-    WOLFKM_NOT_COMPILED_IN   = -1008,
-    WOLFKM_BAD_HEADER_SZ     = -1100,
-    WOLFKM_BAD_VERSION       = -1101,
-    WOLFKM_BAD_REQUEST_TYPE  = -1102,
-    WOLFKM_BAD_X509_D2I      = -1103,
-    WOLFKM_BAD_X509_GET_NAME = -1104,
-    WOLFKM_BAD_X509_ONELINE  = -1105,
-    WOLFKM_BAD_X509_MATCH    = -1106,
+    WOLFKM_NOT_COMPILED_IN   = -1007,
+    WOLFKM_BAD_HOST          = -1008,
+    WOLFKM_BAD_TIMEOUT       = -1009,
+    WOLFKM_BAD_REQUEST_TYPE  = -1100,
 
-    WOLFKM_ERROR_BEGIN = WOLFKM_BAD_VERIFY_SIZE
+    WOLFKM_ERROR_BEGIN = WOLFKM_BAD_ARGS
 };
 
 /* Log levels */
@@ -64,12 +67,7 @@ enum log_level_t {
     WOLFKM_DEFAULT_LOG_LEVEL = WOLFKM_LOG_DEBUG
 };
 
-#ifdef __GNUC__
-#define ATT_STRFUNC __attribute__((format(printf, 2, 3)))
-#else
-#define ATT_STRFUNC
-#endif
-
 #define XLOG wolfKeyMgr_Log
+
 
 #endif /* WOLFKM_TYPES_H */

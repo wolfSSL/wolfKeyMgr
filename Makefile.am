@@ -23,12 +23,13 @@ check_SCRIPTS =
 DISTCLEANFILES+= aminclude.am
 
 ACLOCAL_AMFLAGS = -I m4
-EXTRA_DIST += README test-key.pem test-cert.pem
+EXTRA_DIST += README.md
+EXTRA_DIST += LICENSE
 
 include src/include.am
-include examples/cert_client/include.am
 include examples/etsi_client/include.am
 include scripts/include.am
+include certs/include.am
 
 check_SCRIPTS+= $(dist_noinst_SCRIPTS)
 

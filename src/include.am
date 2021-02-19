@@ -3,12 +3,26 @@
 # All paths should be given relative to the root
 
 
-bin_PROGRAMS+= src/wolfkeymgr
-src_wolfkeymgr_SOURCES = src/keymanager.c src/sock_mgr.c src/mod_https.c src/svc_cert.c src/svc_etsi.c src/wkm_utils.c
+lib_LTLIBRARIES += src/libwolfkeymgr.la
+src_libwolfkeymgr_la_SOURCES  = src/mod_http.c src/mod_etsi.c src/mod_socket.c src/mod_tls.c src/wkm_utils.c
+src_libwolfkeymgr_la_CFLAGS   = -DBUILDING_WKM $(AM_CFLAGS)
+src_libwolfkeymgr_la_CPPFLAGS = -DBUILDING_WKM $(AM_CPPFLAGS)
+src_libwolfkeymgr_la_LDFLAGS  = ${AM_LDFLAGS} -no-undefined -version-info ${WOLFKM_LIBRARY_VERSION}
+
+
+bin_PROGRAMS += src/wolfkeymgr
+src_wolfkeymgr_SOURCES      = src/keymanager.c src/sock_mgr.c src/svc_etsi.c
 src_wolfkeymgr_CFLAGS       =
 src_wolfkeymgr_LDFLAGS      = -Lsrc
-src_wolfkeymgr_LDADD        = $(LTLIBEVENT)
-src_wolfkeymgr_DEPENDENCIES =
+src_wolfkeymgr_LDADD        = src/libwolfkeymgr.la $(LTLIBEVENT) $(LIB_STATIC_ADD)
+src_wolfkeymgr_DEPENDENCIES = src/libwolfkeymgr.la
 
 
-nobase_include_HEADERS+= src/keymanager.h src/sock_mgr.h src/mod_https.h src/svc_cert.h src/svc_etsi.h src/wkm_utils.h
+nobase_include_HEADERS += src/keymanager.h \
+                          src/sock_mgr.h \
+                          src/mod_etsi.h \
+                          src/mod_http.h \
+                          src/mod_socket.h \
+                          src/mod_tls.h \
+                          src/svc_etsi.h \
+                          src/wkm_utils.h

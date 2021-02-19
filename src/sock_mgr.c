@@ -56,6 +56,8 @@ static char kCancel = 'c'; /* cancel */
 static char kWake   = 'w'; /* send wakeup flag */
 static char kNotify = 'n'; /* notify */
 
+static void StatsPrint(stats* local);
+
 /* --- INLINE LOCAL FUNCTIONS --- */
 /* turn on TCP NODELAY for socket */
 static inline void TcpNoDelay(int fd)
@@ -101,7 +103,7 @@ static inline void IncrementTotalConnections(svcConn* conn)
 static inline void IncrementCompleted(svcConn* conn)
 {
     threadStats.completedRequests++;
-    threadStats.responseTime += wolfKeyMgr_GetCurrentTime() - conn->start;
+    threadStats.responseTime += wolfGetCurrentTime() - conn->start;
 }
 
 
@@ -508,7 +510,7 @@ static void ReadCb(struct bufferevent* bev, void* ctx)
 
         /* handle request with callback */
         if (conn->svc && conn->svc->requestCb) {
-            conn->start = wolfKeyMgr_GetCurrentTime();
+            conn->start = wolfGetCurrentTime();
             ret = conn->svc->requestCb(conn);
             if (ret < 0) {
                 /* error */
@@ -744,8 +746,8 @@ static int InitServerTLS(svcInfo* svc)
         XLOG(WOLFKM_LOG_ERROR, "Can't alloc TLS 1.3 context\n");
         return WOLFKM_BAD_MEMORY;
     }
-    wolfSSL_SetIORecv(svc->sslCtx, wolfsslRecvCb);
-    wolfSSL_SetIOSend(svc->sslCtx, wolfsslSendCb);
+    wolfSSL_CTX_SetIORecv(svc->sslCtx, wolfsslRecvCb);
+    wolfSSL_CTX_SetIOSend(svc->sslCtx, wolfsslSendCb);
 
     ret = wolfSSL_CTX_use_certificate_buffer(svc->sslCtx, svc->certBuffer,
         svc->certBufferSz, WOLFSSL_FILETYPE_ASN1);
@@ -839,11 +841,37 @@ void wolfKeyMgr_SignalCb(evutil_socket_t fd, short event, void* arg)
     }
 }
 
+static void StatsPrint(stats* local)
+{
+    double avgResponse = 0.0f;
+
+    if (local->responseTime > 0.0f && local->completedRequests > 0) {
+        avgResponse = local->responseTime / local->completedRequests;
+        avgResponse *= 1000; /* convert to ms */
+    }
+
+    /* always show stats */
+    XLOG(WOLFKM_LOG_ERROR, "Current stats:\n"
+             "total   connections  = %19llu\n"
+             "completed            = %19llu\n"
+             "timeouts             = %19u\n"
+             "current connections  = %19u\n"
+             "max     concurrent   = %19u\n"
+             "uptime  in seconds   = %19lu\n"
+             "average response(ms) = %19.3f\n",
+             (unsigned long long)local->totalConnections,
+             (unsigned long long)local->completedRequests,
+             local->timeouts,
+             local->currentConnections,
+             local->maxConcurrent,
+             time(NULL) - local->began,
+             avgResponse);
+}
+
 /* Show our statistics */
 void wolfKeyMgr_ShowStats(svcInfo* svc)
 {
     stats  local;
-    double avgResponse = 0.0f;
 
     if (svc == NULL)
         return;
@@ -858,27 +886,7 @@ void wolfKeyMgr_ShowStats(svcInfo* svc)
     else 
         local.maxConcurrent -= svc->threadPoolSize - 1;
 
-    if (local.responseTime > 0.0f && local.completedRequests > 0) {
-        avgResponse = local.responseTime / local.completedRequests;
-        avgResponse *= 1000; /* convert to ms */
-    }
-
-    /* always show stats */
-    XLOG(WOLFKM_LOG_ERROR, "Current stats:\n"
-             "total   connections  = %19llu\n"
-             "completed            = %19llu\n"
-             "timeouts             = %19u\n"
-             "current connections  = %19u\n"
-             "max     concurrent   = %19u\n"
-             "uptime  in seconds   = %19lu\n"
-             "average response(ms) = %19.3f\n",
-             (unsigned long long)local.totalConnections,
-             (unsigned long long)local.completedRequests,
-             local.timeouts,
-             local.currentConnections,
-             local.maxConcurrent,
-             time(NULL) - local.began,
-             avgResponse);
+    StatsPrint(&local);
 }
 
 
@@ -1258,7 +1266,7 @@ int wolfKeyMgr_LoadKeyFile(svcInfo* svc, const char* fileName, int fileType,
 {
     int ret;
 
-    ret = wolfKeyMgr_LoadFileBuffer(fileName, &svc->keyBuffer, &svc->keyBufferSz);
+    ret = wolfLoadFileBuffer(fileName, &svc->keyBuffer, &svc->keyBufferSz);
     if (ret != 0) {
         XLOG(WOLFKM_LOG_INFO, "error loading key file %s\n", fileName);
         return ret;
@@ -1287,7 +1295,7 @@ int wolfKeyMgr_LoadCertFile(svcInfo* svc, const char* fileName, int fileType)
 {
     int ret;
     
-    ret = wolfKeyMgr_LoadFileBuffer(fileName, &svc->certBuffer, &svc->certBufferSz);
+    ret = wolfLoadFileBuffer(fileName, &svc->certBuffer, &svc->certBufferSz);
     if (ret != 0) {
         XLOG(WOLFKM_LOG_INFO, "error loading certificate file %s\n", fileName);
         return ret;
