@@ -19,7 +19,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
-#include "keymanager.h"
+#include "wolfkeymgr/keymanager.h"
 
 #include <unistd.h>    /* getopt */
 #include <signal.h>    /* SIGPIPE */

@@ -19,7 +19,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
-#include "mod_tls.h"
+#include "wolfkeymgr/mod_tls.h"
 
 /* wolfSSL I/O Receive CallBack */
 static int wkmTlsReadCb(WOLFSSL* ssl, char* buf, int sz, void* ctx)

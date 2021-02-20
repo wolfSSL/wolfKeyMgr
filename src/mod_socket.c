@@ -19,7 +19,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
-#include "mod_socket.h"
+#include "wolfkeymgr/mod_socket.h"
 
 
 #ifdef USE_IPV6

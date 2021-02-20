@@ -26,9 +26,9 @@
 extern "C" {
 #endif
 
-#include "wkm_types.h"
-#include "wkm_utils.h"
-#include "mod_socket.h"
+#include "wolfkeymgr/wkm_types.h"
+#include "wolfkeymgr/wkm_utils.h"
+#include "wolfkeymgr/mod_socket.h"
 
 
 /* wolfssl headers */

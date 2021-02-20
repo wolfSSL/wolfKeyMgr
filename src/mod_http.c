@@ -21,8 +21,9 @@
 
 /* HTTP 1.1 Client and Server Module */
 
-#include "mod_http.h"
-#include "wkm_utils.h"
+#include "wolfkeymgr/mod_http.h"
+#include "wolfkeymgr/wkm_utils.h"
+
 #include <string.h>
 
 static const char* kCrlf = "\r\n";

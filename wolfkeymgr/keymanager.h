@@ -28,12 +28,12 @@
 
 
 /* Key Manager Headers */
-#include "wkm_types.h"
-#include "wkm_utils.h"
-#include "mod_http.h"
-#include "mod_etsi.h"
-#include "sock_mgr.h"
-#include "svc_etsi.h"
+#include "wolfkeymgr/wkm_types.h"
+#include "wolfkeymgr/wkm_utils.h"
+#include "wolfkeymgr/mod_http.h"
+#include "wolfkeymgr/mod_etsi.h"
+#include "wolfkeymgr/sock_mgr.h"
+#include "wolfkeymgr/svc_etsi.h"
 
 
 /* wolfssl headers */

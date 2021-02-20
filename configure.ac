@@ -7,7 +7,7 @@ AC_PREREQ(2.59)
 
 AC_INIT([wolfKeyManager],[0.2],[http://www.wolfssl.com])
 AC_CONFIG_AUX_DIR(config)
-AC_CONFIG_HEADERS([src/config.h])
+AC_CONFIG_HEADERS([wolfkeymgr/config.h])
 AC_CONFIG_MACRO_DIR(m4)
 
 # The following sets CFLAGS to empty if unset on command line.  We do not
@@ -143,7 +143,7 @@ AM_CONDITIONAL([BUILD_ETSI_SERVICE],[test "x$ENABLED_ETSI_SERVICE" = "xyes"])
 
 
 # FINAL
-AC_CONFIG_FILES([Makefile src/options.h src/version.h])
+AC_CONFIG_FILES([Makefile wolfkeymgr/options.h wolfkeymgr/version.h])
 
 AX_AM_JOBSERVER([yes])
 
@@ -161,7 +161,7 @@ echo
 echo "---"
 echo "Generating user options header..."
 
-OPTION_FILE="src/options.h"
+OPTION_FILE="wolfkeymgr/options.h"
 rm -f $OPTION_FILE
 
 echo "/* wolf key manager options.h" > $OPTION_FILE

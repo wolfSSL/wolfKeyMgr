@@ -19,7 +19,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
-#include "wkm_utils.h"
+#include "wolfkeymgr/wkm_utils.h"
 
 #include <time.h>
 #include <sys/time.h>

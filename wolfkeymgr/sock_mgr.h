@@ -34,7 +34,7 @@
 #include <event2/buffer.h>
 #include <event2/dns.h>
 
-#include "wkm_types.h"
+#include "wolfkeymgr/wkm_types.h"
 
 /* wolfssl headers */
 #include <wolfssl/options.h>

@@ -37,7 +37,7 @@
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
 
-#include "keymanager.h"
+#include "wolfkeymgr/keymanager.h"
 
 /* per thread stats, doesn't use lock */
 static __thread stats threadStats;

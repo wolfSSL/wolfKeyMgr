@@ -26,8 +26,8 @@
 extern "C" {
 #endif
 
-#include "wkm_types.h"
-#include "wkm_utils.h"
+#include "wolfkeymgr/wkm_types.h"
+#include "wolfkeymgr/wkm_utils.h"
 
 #ifdef USE_WINDOWS_API
     #include <winsock2.h>

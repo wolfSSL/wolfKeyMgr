@@ -22,7 +22,7 @@
 #ifndef WOLFKM_UTILS_H
 #define WOLFKM_UTILS_H
 
-#include "wkm_types.h"
+#include "wolfkeymgr/wkm_types.h"
 
 
 #ifdef __GNUC__

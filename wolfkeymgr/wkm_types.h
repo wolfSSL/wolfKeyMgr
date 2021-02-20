@@ -22,8 +22,10 @@
 #ifndef WOLFKM_TYPES_H
 #define WOLFKM_TYPES_H
 
-#include "config.h"
-#include "visibility.h"
+#ifdef HAVE_CONFIG_H
+    #include <config.h>
+#endif
+#include "wolfkeymgr/visibility.h"
 
 #include <stdio.h>
 #include <stdarg.h>

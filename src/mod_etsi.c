@@ -21,9 +21,7 @@
 
 #ifdef WOLFKM_ETSI_SERVICE
 
-#include "mod_etsi.h"
-#include "mod_http.h"
-#include "mod_tls.h"
+#include "wolfkeymgr/mod_etsi.h"
 
 struct EtsiClientCtx {
     WOLFSSL_CTX*   sslCtx;

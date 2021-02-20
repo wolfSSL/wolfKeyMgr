@@ -26,7 +26,7 @@
 extern "C" {
 #endif
 
-#include "wkm_types.h"
+#include "wolfkeymgr/wkm_types.h"
 
 /* Configurable HTTP Settings */
 #ifndef HTTP_HDR_MAX_ITEMS

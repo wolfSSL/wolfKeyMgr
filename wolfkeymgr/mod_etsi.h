@@ -26,8 +26,10 @@
 extern "C" {
 #endif
 
-#include "wkm_types.h"
-#include "mod_socket.h"
+#include "wolfkeymgr/wkm_types.h"
+#include "wolfkeymgr/mod_http.h"
+#include "wolfkeymgr/mod_socket.h"
+#include "wolfkeymgr/mod_tls.h"
 
 typedef struct EtsiClientCtx EtsiClientCtx;
 

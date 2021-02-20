@@ -40,4 +40,4 @@ diff
 src/wolfkeymgr
 examples/etsi_client/etsi_client
 libtool
-src/options.h
+wolfkeymgr/options.h

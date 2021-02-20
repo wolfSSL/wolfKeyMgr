@@ -19,9 +19,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
-#include "keymanager.h"
-#include "mod_http.h"
-#include "mod_etsi.h"
+#include "wolfkeymgr/keymanager.h"
+#include "wolfkeymgr/mod_http.h"
+#include "wolfkeymgr/mod_etsi.h"
 
 #ifdef WOLFKM_ETSI_SERVICE
 

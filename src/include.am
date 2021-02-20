@@ -17,12 +17,12 @@ src_wolfkeymgr_LDFLAGS      = -Lsrc
 src_wolfkeymgr_LDADD        = src/libwolfkeymgr.la $(LTLIBEVENT) $(LIB_STATIC_ADD)
 src_wolfkeymgr_DEPENDENCIES = src/libwolfkeymgr.la
 
+noinst_HEADERS  += wolfkeymgr/keymanager.h \
+                   wolfkeymgr/sock_mgr.h \
+                   wolfkeymgr/svc_etsi.h
 
-nobase_include_HEADERS += src/keymanager.h \
-                          src/sock_mgr.h \
-                          src/mod_etsi.h \
-                          src/mod_http.h \
-                          src/mod_socket.h \
-                          src/mod_tls.h \
-                          src/svc_etsi.h \
-                          src/wkm_utils.h
+nobase_include_HEADERS += wolfkeymgr/mod_etsi.h \
+                          wolfkeymgr/mod_http.h \
+                          wolfkeymgr/mod_socket.h \
+                          wolfkeymgr/mod_tls.h \
+                          wolfkeymgr/wkm_utils.h
