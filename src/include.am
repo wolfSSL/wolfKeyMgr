@@ -25,4 +25,8 @@ nobase_include_HEADERS += wolfkeymgr/mod_etsi.h \
                           wolfkeymgr/mod_http.h \
                           wolfkeymgr/mod_socket.h \
                           wolfkeymgr/mod_tls.h \
-                          wolfkeymgr/wkm_utils.h
+                          wolfkeymgr/options.h \
+                          wolfkeymgr/version.h \
+                          wolfkeymgr/visibility.h \
+                          wolfkeymgr/wkm_utils.h \
+                          wolfkeymgr/wkm_types.h
