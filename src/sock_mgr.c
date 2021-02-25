@@ -749,20 +749,40 @@ static int InitServerTLS(svcInfo* svc)
     wolfSSL_CTX_SetIORecv(svc->sslCtx, wolfsslRecvCb);
     wolfSSL_CTX_SetIOSend(svc->sslCtx, wolfsslSendCb);
 
-    ret = wolfSSL_CTX_use_certificate_buffer(svc->sslCtx, svc->certBuffer,
-        svc->certBufferSz, WOLFSSL_FILETYPE_ASN1);
-    if (ret != WOLFSSL_SUCCESS) {
-        XLOG(WOLFKM_LOG_ERROR, "Can't load TLS cert into context\n");
-        wolfSSL_CTX_free(svc->sslCtx); svc->sslCtx = NULL;
-        return ret;
+    if (svc->caBuffer) {
+        ret = wolfSSL_CTX_load_verify_buffer(svc->sslCtx, svc->caBuffer,
+            svc->caBufferSz, WOLFSSL_FILETYPE_ASN1);
+        if (ret != WOLFSSL_SUCCESS) {
+            XLOG(WOLFKM_LOG_ERROR, "Can't load TLS cert into context\n");
+            wolfSSL_CTX_free(svc->sslCtx); svc->sslCtx = NULL;
+            return ret;
+        }
     }
 
-    ret = wolfSSL_CTX_use_PrivateKey_buffer(svc->sslCtx, svc->keyBuffer, 
-        svc->keyBufferSz, WOLFSSL_FILETYPE_ASN1);
-    if (ret != WOLFSSL_SUCCESS) {
-        XLOG(WOLFKM_LOG_ERROR, "Can't load TLS key into context\n");
-        wolfSSL_CTX_free(svc->sslCtx); svc->sslCtx = NULL;
-        return ret;
+    if (svc->certBuffer) {
+        ret = wolfSSL_CTX_use_certificate_buffer(svc->sslCtx, svc->certBuffer,
+            svc->certBufferSz, WOLFSSL_FILETYPE_ASN1);
+        if (ret != WOLFSSL_SUCCESS) {
+            XLOG(WOLFKM_LOG_ERROR, "Can't load TLS cert into context\n");
+            wolfSSL_CTX_free(svc->sslCtx); svc->sslCtx = NULL;
+            return ret;
+        }
+    }
+
+    if (svc->keyBuffer) {
+        ret = wolfSSL_CTX_use_PrivateKey_buffer(svc->sslCtx, svc->keyBuffer, 
+            svc->keyBufferSz, WOLFSSL_FILETYPE_ASN1);
+        if (ret != WOLFSSL_SUCCESS) {
+            XLOG(WOLFKM_LOG_ERROR, "Can't load TLS key into context\n");
+            wolfSSL_CTX_free(svc->sslCtx); svc->sslCtx = NULL;
+            return ret;
+        }
+    }
+
+    /* mutual authentication */
+    if (!svc->disableMutalAuth) {
+        wolfSSL_CTX_set_verify(svc->sslCtx, 
+            (WOLFSSL_VERIFY_PEER | WOLFSSL_VERIFY_FAIL_IF_NO_PEER_CERT), NULL);
     }
     return 0;
 }
@@ -839,6 +859,8 @@ void wolfKeyMgr_SignalCb(evutil_socket_t fd, short event, void* arg)
     for (i=0; i< MAX_SERVICES; i++) {
         wolfKeyMgr_ServiceCleanup(sigArg->svc[i]);
     }
+
+    wolfKeyMgr_CloseLog();    
 }
 
 static void StatsPrint(stats* local)
@@ -1310,12 +1332,41 @@ int wolfKeyMgr_LoadCertFile(svcInfo* svc, const char* fileName, int fileType)
         if (ret <= 0) {
             XLOG(WOLFKM_LOG_ERROR, "Can't convert file %s from PEM to DER: %d\n", 
                 fileName, ret);
-            free(svc->keyBuffer); svc->keyBuffer = NULL;
+            free(svc->certBuffer); svc->certBuffer = NULL;
             return WOLFKM_BAD_CERT;
         }
         svc->certBufferSz = ret;
     }
 
     XLOG(WOLFKM_LOG_INFO, "loaded certificate file %s\n", fileName);
+    return 0;
+}
+
+int wolfKeyMgr_LoadCAFile(svcInfo* svc, const char* fileName, int fileType)
+{
+    int ret;
+    
+    ret = wolfLoadFileBuffer(fileName, &svc->caBuffer, &svc->caBufferSz);
+    if (ret != 0) {
+        XLOG(WOLFKM_LOG_INFO, "error loading certificate file %s\n", fileName);
+        return ret;
+    }
+
+    if (fileType == WOLFSSL_FILETYPE_PEM) {
+        /* convert to DER */
+        ret = wc_CertPemToDer(
+            svc->caBuffer, svc->caBufferSz, 
+            svc->caBuffer, svc->caBufferSz,
+            CERT_TYPE);
+        if (ret <= 0) {
+            XLOG(WOLFKM_LOG_ERROR, "Can't convert file %s from PEM to DER: %d\n", 
+                fileName, ret);
+            free(svc->caBuffer); svc->caBuffer = NULL;
+            return WOLFKM_BAD_CERT;
+        }
+        svc->caBufferSz = ret;
+    }
+
+    XLOG(WOLFKM_LOG_INFO, "loaded CA certificate file %s\n", fileName);
     return 0;
 }

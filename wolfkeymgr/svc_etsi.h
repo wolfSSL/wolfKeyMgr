@@ -28,11 +28,12 @@ extern "C" {
 
 #define WOLFKM_ETSISVC_PORT         "8119"
 #define WOLFKM_ETSISVC_KEY_PASSWORD "wolfssl"
-#define WOLFKM_ETSISVC_KEY          "./certs/test-key.pem"
-#define WOLFKM_ETSISVC_CERT         "./certs/test-cert.pem"
+#define WOLFKM_ETSISVC_CA           "./certs/ca-cert.pem"
+#define WOLFKM_ETSISVC_KEY          "./certs/server-key.pem"
+#define WOLFKM_ETSISVC_CERT         "./certs/server-cert.pem"
 
 
-WOLFKM_LOCAL svcInfo* wolfEtsiSvc_Init(struct event_base* mainBase, word32 timeoutSec);
+WOLFKM_LOCAL svcInfo* wolfEtsiSvc_Init(struct event_base* mainBase, int timeoutSec);
 WOLFKM_LOCAL void wolfEtsiSvc_Cleanup(svcInfo* svc);
 
 WOLFKM_LOCAL int wolfEtsiSvc_WorkerInit(svcInfo* svc, void** svcThreadCtx);

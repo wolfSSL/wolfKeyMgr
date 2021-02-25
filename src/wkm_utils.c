@@ -112,7 +112,7 @@ void wolfKeyMgr_Log(enum log_level_t level, const char* fmt, ...)
     time_t  current;
     struct  tm local;
 
-    if (level < logLevel)
+    if (level > logLevel)
         return;   /* don't need to output */
 
     if (logFile == NULL)
@@ -136,6 +136,16 @@ void wolfKeyMgr_Log(enum log_level_t level, const char* fmt, ...)
 
     fprintf(logFile, "%s: [%s] %s", 
         timeStr, wolfKeyMgr_GetLogLevel(level), msgStr);
+}
+
+void wolfKeyMgr_CloseLog(void)
+{
+    if (logFile != NULL) {
+        fflush(logFile);
+        if (logFile != stderr) {
+            fclose(logFile);
+        }
+    }
 }
 
 /* generic API's for loading a file buffer */

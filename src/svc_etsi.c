@@ -54,6 +54,8 @@ static svcInfo etsiService = {
     .certBufferSz = 0,
     .keyBuffer = NULL,
     .keyBufferSz = 0,
+    .caBuffer = NULL,
+    .caBufferSz = 0,
 
     .svcCtx = &svcCtx,
 };
@@ -340,7 +342,7 @@ void wolfEtsiSvc_WorkerFree(svcInfo* svc, void* svcThreadCtx)
 #endif /* WOLFKM_ETSI_SERVICE */
 
 
-svcInfo* wolfEtsiSvc_Init(struct event_base* mainBase, word32 timeoutSec)
+svcInfo* wolfEtsiSvc_Init(struct event_base* mainBase, int timeoutSec)
 {
 #ifdef WOLFKM_ETSI_SERVICE
     int ret;
@@ -367,22 +369,6 @@ svcInfo* wolfEtsiSvc_Init(struct event_base* mainBase, word32 timeoutSec)
         return NULL;
     }
 
-    ret = wolfKeyMgr_LoadKeyFile(svc, WOLFKM_ETSISVC_KEY, 
-        WOLFSSL_FILETYPE_PEM, WOLFKM_ETSISVC_KEY_PASSWORD);
-    if (ret != 0) {
-        XLOG(WOLFKM_LOG_ERROR, "Error loading ETSI TLS key\n");
-        wolfEtsiSvc_Cleanup(svc);
-        return NULL;
-    }
-
-    ret = wolfKeyMgr_LoadCertFile(svc, WOLFKM_ETSISVC_CERT, 
-        WOLFSSL_FILETYPE_PEM);
-    if (ret != 0) {
-        XLOG(WOLFKM_LOG_ERROR, "Error loading ETSI TLS certificate\n");
-        wolfEtsiSvc_Cleanup(svc);
-        return NULL;
-    }
-
     /* setup listening events */
     ret = wolfKeyMgr_AddListeners(svc, AF_INET6, listenPort, mainBase);  /* 6 may contain a 4 */
     if (ret < 0)
@@ -396,6 +382,9 @@ svcInfo* wolfEtsiSvc_Init(struct event_base* mainBase, word32 timeoutSec)
 
     return svc;
 #else
+    (void)mainBase;
+    (void)timeoutSec;
+    (void)disableMutalAuth;
     return NULL;
 #endif
 }

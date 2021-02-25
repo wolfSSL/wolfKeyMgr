@@ -29,18 +29,32 @@ static void Usage(void)
 {
     printf("%s\n", PACKAGE_STRING);
     printf("-?          Help, print this usage\n");
-    printf("-c          Don't chdir / in daemon mode\n");
-    printf("-d          Daemon mode, run in background\n");
-    printf("-f <str>    Pid File name, default %s\n", WOLFKM_DEFAULT_PID);
-    printf("-l <str>    Log file name, default %s\n",
+    printf("-i          Don't chdir / in daemon mode\n");
+    printf("-b          Daemon mode, run in background\n");
+    printf("-p <str>    Pid File name, default %s\n", WOLFKM_DEFAULT_PID);
+    printf("-l <num>    Log Level (1=Error to 4=Debug), default %d\n", WOLFKM_DEFAULT_LOG_LEVEL);
+    printf("-f <str>    Log file name, default %s\n",
                           WOLFKM_DEFAULT_LOG_NAME ? WOLFKM_DEFAULT_LOG_NAME : "None");
-    printf("-m <num>    Max open files, default  %d\n", WOLFKM_DEFAULT_FILES);
+    printf("-o <num>    Max open files, default  %d\n", WOLFKM_DEFAULT_FILES);
     printf("-s <num>    Seconds to timeout, default %d\n", WOLFKM_DEFAULT_TIMEOUT);
     printf("-t <num>    Thread pool size, default  %ld\n",
                                                  sysconf(_SC_NPROCESSORS_CONF));
-    printf("-v <num>    Log Level, default %d\n", WOLFKM_DEFAULT_LOG_LEVEL);
+    printf("-d          TLS Disable Mutual Authentication\n");
+    printf("-k <pem>    TLS Server TLS Key, default %s\n", WOLFKM_ETSISVC_KEY);
+    printf("-w <pass>   TLS Server Key Password, default %s\n", WOLFKM_ETSISVC_KEY_PASSWORD);
+    printf("-c <pem>    TLS Server Certificate, default %s\n", WOLFKM_ETSISVC_CERT);
+    printf("-A <pem>    TLS CA Certificate, default %s\n", WOLFKM_ETSISVC_CA);
 }
 
+static int wolfKeyMgr_AddSigHandler(struct event_base* mainBase,
+    signalArg* sigArg, int sig)
+{
+    struct event* signalEvent = event_new(mainBase, sig,
+        (EV_SIGNAL | EV_PERSIST), wolfKeyMgr_SignalCb, sigArg);
+    sigArg->base = mainBase;
+    sigArg->ev   = signalEvent;
+    return event_add(signalEvent, NULL);
+}
 
 int main(int argc, char** argv)
 {
@@ -53,23 +67,27 @@ int main(int argc, char** argv)
     enum log_level_t logLevel = WOLFKM_DEFAULT_LOG_LEVEL;
     char*  logName    = WOLFKM_DEFAULT_LOG_NAME;
     char*  pidName    = WOLFKM_DEFAULT_PID;
-    struct event*           signalEvent = NULL; /* signal event handle */
     struct event_base*      mainBase = NULL;    /* main thread's base  */
-    signalArg               sigArg;
     FILE*                   pidF = 0;
     svcInfo* etsiSvc = NULL;
     word32 timeoutSec  = WOLFKM_DEFAULT_TIMEOUT;
+    int disableMutualAuth = 0; /* on by default */
+    const char* serverKey = WOLFKM_ETSISVC_KEY;
+    const char* serverKeyPass = WOLFKM_ETSISVC_KEY_PASSWORD;
+    const char* serverCert = WOLFKM_ETSISVC_CERT;
+    const char* caCert = WOLFKM_ETSISVC_CA;
+    signalArg sigArgInt, sigArgTerm;
 
     /* argument processing */
-    while ((ch = getopt(argc, argv, "?dcns:t:m:l:f:v:")) != -1) {
+    while ((ch = getopt(argc, argv, "?bis:t:o:f:l:dk:w:c:A:")) != -1) {
         switch (ch) {
             case '?' :
                 Usage();
                 exit(EXIT_SUCCESS);
-            case 'd' :
+            case 'b' :
                 daemon = 1;
                 break;
-            case 'c' :
+            case 'i' :
                 core = 1;
                 break;
             case 's' :
@@ -85,21 +103,36 @@ int main(int argc, char** argv)
             case 't' :
                 poolSize = atoi(optarg);
                 break;
-            case 'm' :
+            case 'o' :
                 maxFiles = atoi(optarg);
                 break;
-            case 'l' :
+            case 'f' :
                 logName = optarg;
                 break;
-            case 'f' :
+            case 'p' :
                 pidName = optarg;
                 break;
-            case 'v' :
+            case 'l' :
                 logLevel = atoi(optarg);
-                if (logLevel < WOLFKM_LOG_DEBUG || logLevel > WOLFKM_LOG_ERROR) {
+                if (logLevel < WOLFKM_LOG_ERROR || logLevel > WOLFKM_LOG_DEBUG) {
                     perror("loglevel [1:4] only");
                     exit(EX_USAGE);
                 }
+                break;
+            case 'd':
+                disableMutualAuth = 1;
+                break;
+            case 'k':
+                serverKey = optarg;
+                break;
+            case 'w':
+                serverKeyPass = optarg;
+                break;
+            case 'c':
+                serverCert = optarg;
+                break;
+            case 'A':
+                caCert = optarg;
                 break;
 
             default:
@@ -170,18 +203,39 @@ int main(int argc, char** argv)
     /********** ETSI Service **********/
     etsiSvc = wolfEtsiSvc_Init(mainBase, timeoutSec);
     if (etsiSvc) {
+        ret = wolfKeyMgr_LoadCAFile(etsiSvc, caCert, WOLFSSL_FILETYPE_PEM);
+        if (ret != 0) {
+            XLOG(WOLFKM_LOG_ERROR, "Error loading ETSI TLS CA cert\n");
+        }
+
+        ret = wolfKeyMgr_LoadKeyFile(etsiSvc, serverKey, 
+            WOLFSSL_FILETYPE_PEM, serverKeyPass);
+        if (ret != 0) {
+            XLOG(WOLFKM_LOG_ERROR, "Error loading ETSI TLS key\n");
+        }
+
+        ret = wolfKeyMgr_LoadCertFile(etsiSvc, serverCert, 
+            WOLFSSL_FILETYPE_PEM);
+        if (ret != 0) {
+            XLOG(WOLFKM_LOG_ERROR, "Error loading ETSI TLS certificate\n");
+        }
+
+        etsiSvc->disableMutalAuth = disableMutualAuth;
+
         /* thread setup - cleanup handled in sigint handler */
         wolfKeyMgr_ServiceInit(etsiSvc, poolSize);
     }
 
-    /* SIGINT handler */
-    signalEvent = event_new(mainBase, SIGINT, (EV_SIGNAL | EV_PERSIST), 
-        wolfKeyMgr_SignalCb, &sigArg);
-    memset(&sigArg, 0, sizeof(sigArg));
-    sigArg.ev   = signalEvent;
-    sigArg.base = mainBase;
-    sigArg.svc[0] = etsiSvc;
-    if (event_add(signalEvent, NULL) == -1) {
+    memset(&sigArgInt, 0, sizeof(sigArgInt));
+    memset(&sigArgTerm, 0, sizeof(sigArgTerm));
+    sigArgInt.svc[0] = etsiSvc;
+    sigArgTerm.svc[0] = etsiSvc;
+
+    ret = wolfKeyMgr_AddSigHandler(mainBase, &sigArgInt, SIGINT);
+    if (ret == 0) {
+        ret = wolfKeyMgr_AddSigHandler(mainBase, &sigArgTerm, SIGTERM);
+    }
+    if (ret != 0) {
         XLOG(WOLFKM_LOG_ERROR, "Can't add event for signal\n");
         ret = EXIT_FAILURE; goto exit;
     }
@@ -204,7 +258,8 @@ exit:
     wolfKeyMgr_FreeListeners();
 
     wolfEtsiSvc_Cleanup(etsiSvc);
-    if (signalEvent) event_del(signalEvent);
+    if (sigArgInt.ev) event_del(sigArgInt.ev);
+    if (sigArgTerm.ev) event_del(sigArgTerm.ev);
     if (mainBase) event_base_free(mainBase);
     wolfSSL_Cleanup();
 

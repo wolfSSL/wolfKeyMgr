@@ -32,9 +32,6 @@
 #define EXIT_FAILURE 1
 #endif
 
-/* Certificate for ETSI server or signer CA */
-#define WOLFKM_ETSISVC_CERT    "./certs/test-cert.pem"
-
 
 typedef struct WorkThreadInfo {
     const char* host;
@@ -43,6 +40,10 @@ typedef struct WorkThreadInfo {
     int useGet;
     char* saveResp;
     word16 port;
+    const char* keyFile;
+    const char* keyPass;
+    const char* clientCertFile;
+    const char* caFile;
 } WorkThreadInfo;
 
 
@@ -119,9 +120,14 @@ static void* DoRequests(void* arg)
         XLOG(WOLFKM_LOG_ERROR, "Error creating ETSI client %d!\n", ret);
         return NULL;
     }
-    ret = wolfEtsiClientAddCA(client, WOLFKM_ETSISVC_CERT);
+    ret = wolfEtsiClientAddCA(client, info->caFile);
     if (ret != 0) {
         XLOG(WOLFKM_LOG_ERROR, "Error loading ETSI server CA %d!\n", ret);
+    }
+    ret = wolfEtsiClientSetKey(client, info->keyFile, info->keyPass,
+        info->clientCertFile, WOLFSSL_FILETYPE_PEM);
+    if (ret != 0) {
+        XLOG(WOLFKM_LOG_ERROR, "Error loading ETSI client key/cert %d!\n", ret);
     }
     ret = wolfEtsiClientConnect(client, info->host, info->port, 
         info->timeoutSec);
@@ -152,15 +158,18 @@ static void Usage(void)
     printf("-h <str>    Host to connect to, default %s\n", WOLFKM_DEFAULT_HOST);
     printf("-p <num>    Port to connect to, default %s\n", WOLFKM_DEFAULT_ETSISVC_PORT);
     printf("-t <num>    Thread pool size (stress test), default  %d\n", 0);
-    printf("-l <num>    Log Level, default %d\n", WOLFKM_DEFAULT_LOG_LEVEL);
+    printf("-l <num>    Log Level (1=Error to 4=Debug), default %d\n", WOLFKM_DEFAULT_LOG_LEVEL);
     printf("-r <num>    Requests per thread, default %d\n",
                                                           WOLFKM_DEFAULT_REQUESTS);
     printf("-f <file>   <file> to store ETSI response\n");
     printf("-g          Use HTTP GET (default is Push with HTTP PUT)\n");
     printf("-s <sec>    Timeout seconds (default %d)\n", WOLFKM_ETST_CLIENT_DEF_TIMEOUT_SEC);
 
+    printf("-k <pem>    TLS Client TLS Key, default %s\n", WOLFKM_ETSICLIENT_KEY);
+    printf("-w <pass>   TLS Client Key Password, default %s\n", WOLFKM_ETSICLIENT_PASS);
+    printf("-c <pem>    TLS Client Certificate, default %s\n", WOLFKM_ETSICLIENT_CERT);
+    printf("-A <pem>    TLS CA Certificate, default %s\n", WOLFKM_ETSICLIENT_CA);
 }
-
 
 int main(int argc, char** argv)
 {
@@ -177,13 +186,17 @@ int main(int argc, char** argv)
     info.host = WOLFKM_DEFAULT_HOST;
     info.timeoutSec = WOLFKM_ETST_CLIENT_DEF_TIMEOUT_SEC;
     info.port = atoi(WOLFKM_DEFAULT_ETSISVC_PORT);
+    info.keyFile = WOLFKM_ETSICLIENT_KEY;
+    info.keyPass = WOLFKM_ETSICLIENT_PASS;
+    info.clientCertFile = WOLFKM_ETSICLIENT_CERT;
+    info.caFile = WOLFKM_ETSICLIENT_CA;
 
 #ifdef DISABLE_SSL
     usingTLS = 0;    /* can only disable at build time */
 #endif
 
     /* argument processing */
-    while ((ch = getopt(argc, argv, "?eh:p:t:l:r:f:gs:")) != -1) {
+    while ((ch = getopt(argc, argv, "?eh:p:t:l:r:f:gs:k:w:c:A:")) != -1) {
         switch (ch) {
             case '?' :
                 Usage();
@@ -208,7 +221,7 @@ int main(int argc, char** argv)
                 break;
             case 'l' :
                 logLevel = atoi(optarg);
-                if (logLevel < WOLFKM_LOG_DEBUG || logLevel > WOLFKM_LOG_ERROR) {
+                if (logLevel < WOLFKM_LOG_ERROR || logLevel > WOLFKM_LOG_DEBUG) {
                     perror("loglevel [1:4] only");
                     exit(EX_USAGE);
                 }
@@ -218,6 +231,18 @@ int main(int argc, char** argv)
                 break;
             case 's' :
                 info.timeoutSec = atoi(optarg);
+                break;
+            case 'k':
+                info.keyFile= optarg;
+                break;
+            case 'w':
+                info.keyPass = optarg;
+                break;
+            case 'c':
+                info.clientCertFile = optarg;
+                break;
+            case 'A':
+                info.caFile = optarg;
                 break;
 
             default:
@@ -233,13 +258,14 @@ int main(int argc, char** argv)
     if (errorMode)
         return DoErrorMode();
     
+    wolfEtsiClientInit();
+
     if (poolSize == 0) {
         info.requests = 1; /* only 1 request for this */
         DoRequests(&info);
     }
     else {
         /* stress testing with a thread pool */
-        wolfEtsiClientInit();
 
         /* thread id holder */
         tids = calloc(poolSize, sizeof(pthread_t));
@@ -263,8 +289,8 @@ int main(int argc, char** argv)
         }
 
         free(tids);
-        wolfEtsiClientCleanup();
     }
+    wolfEtsiClientCleanup();
 
     return 0;
 }

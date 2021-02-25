@@ -51,7 +51,7 @@ extern "C" {
 /* program constants */
 #define MAX_SOCKADDR_SZ   32
 #define MAX_REQUEST_SIZE (16*1024)
-#define MAX_SERVICES      2
+#define MAX_SERVICES      1
 
 /* program types */
 
@@ -96,8 +96,11 @@ struct svcInfo {
     int             noTLS;
     byte*           keyBuffer;
     byte*           certBuffer;
+    byte*           caBuffer;
     word32          keyBufferSz;
     word32          certBufferSz;
+    word32          caBufferSz;
+    int             disableMutalAuth;
 
     /* Shared context for all threads */
     void*           svcCtx;
@@ -198,7 +201,7 @@ WOLFKM_LOCAL int wolfKeyMgr_DoSend(svcConn* conn, byte* resp, int respSz);
 WOLFKM_LOCAL int wolfKeyMgr_NotifyAllClients(svcInfo* svc);
 WOLFKM_LOCAL int wolfKeyMgr_LoadKeyFile(svcInfo* svc, const char* fileName, int fileType, const char* password);
 WOLFKM_LOCAL int wolfKeyMgr_LoadCertFile(svcInfo* svc, const char* fileName, int fileType);
-
+WOLFKM_LOCAL int wolfKeyMgr_LoadCAFile(svcInfo* svc, const char* fileName, int fileType);
 
 
 #ifdef __cplusplus

@@ -32,6 +32,12 @@ extern "C" {
 #define WOLFKM_DEFAULT_REQUESTS     100   /* per thread */
 #define WOLFKM_ERROR_MODE_MAX       5       /* error mode type for forcing errors */
 
+/* example certificate and key for mutual authentication to key manager */
+/* see ./certs/test-cert.sh for generation and signing */
+#define WOLFKM_ETSICLIENT_CA        "./certs/ca-cert.pem"
+#define WOLFKM_ETSICLIENT_KEY      "certs/client-key.pem"
+#define WOLFKM_ETSICLIENT_PASS     "wolfssl"
+#define WOLFKM_ETSICLIENT_CERT     "certs/client-cert.pem"
 
 
 #ifdef __cplusplus

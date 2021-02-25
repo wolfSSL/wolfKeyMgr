@@ -163,12 +163,12 @@ int wolfTlsSetKey(WOLFSSL_CTX* ctx, const char* keyFile,
         }
         ret = wolfSSL_CTX_use_PrivateKey_file(ctx, keyFile, fileType);
     }
-    if (certFile) {
+    if (ret == WOLFSSL_SUCCESS && certFile) {
         ret = wolfSSL_CTX_use_certificate_file(ctx, certFile, fileType);
     }
 
     if (ret != WOLFSSL_SUCCESS) {
-        XLOG(WOLFKM_LOG_ERROR, "error loading key / cert\n");
+        XLOG(WOLFKM_LOG_ERROR, "Error loading client key/cert\n");
         ret = WOLFKM_BAD_CERT;
     }
     else {

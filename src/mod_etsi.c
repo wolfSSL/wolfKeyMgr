@@ -139,7 +139,8 @@ int wolfEtsiClientGet(EtsiClientCtx* client,
             ret = wolfTlsWrite(client->ssl, (byte*)request + pos,
                 requestSz - pos);
             if (ret < 0) {
-                XLOG(WOLFKM_LOG_INFO, "DoClientSend failed: %d\n", ret);
+                XLOG(WOLFKM_LOG_INFO, "DoClientSend failed: %d (%s)\n", ret,
+                    wolfSSL_ERR_reason_error_string(ret));
                 return ret;
             }
             pos += ret;
@@ -226,6 +227,9 @@ void wolfEtsiClientFree(EtsiClientCtx* client)
 
 int wolfEtsiClientInit(void)
 {
+#if 0
+    wolfSSL_Debugging_ON();
+#endif
     return wolfSSL_Init();
 }
 

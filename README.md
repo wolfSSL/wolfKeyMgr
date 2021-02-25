@@ -84,12 +84,104 @@ $ sudo make install
 
 Note: A custom install location can be specified using: `./configure --prefix=/opt/local`
 
-## Running ETSI Example
+## Key Manager and ETSI Client Command Line Help
+
+Help using `-?`:
+
+```sh
+$ ./src/wolfkeymgr -?
+wolfKeyManager 0.3
+-?          Help, print this usage
+-i          Don't chdir / in daemon mode
+-b          Daemon mode, run in background
+-p <str>    Pid File name, default ./wolfkeymgr.pid
+-l <num>    Log Level (1=Error to 4=Debug), default 4
+-f <str>    Log file name, default None
+-o <num>    Max open files, default  1024
+-s <num>    Seconds to timeout, default 60
+-t <num>    Thread pool size, default  48
+-d          TLS Disable Mutual Authentication
+-k <pem>    TLS Server TLS Key, default ./certs/server-key.pem
+-w <pass>   TLS Server Key Password, default wolfssl
+-c <pem>    TLS Server Certificate, default ./certs/server-cert.pem
+-c <pem>    TLS CA Certificate, default ./certs/ca-cert.pem
+```
+
+```sh
+$ ./examples/etsi_client/etsi_client -?
+etsi_client 0.3
+-?          Help, print this usage
+-e          Error mode, force error response
+-h <str>    Host to connect to, default localhost
+-p <num>    Port to connect to, default 8119
+-t <num>    Thread pool size (stress test), default  0
+-l <num>    Log Level (1=Error to 4=Debug), default 4
+-r <num>    Requests per thread, default 100
+-f <file>   <file> to store ETSI response
+-g          Use HTTP GET (default is Push with HTTP PUT)
+-s <sec>    Timeout seconds (default 10)
+-k <pem>    TLS Client TLS Key, default certs/client-key.pem
+-w <pass>   TLS Client Key Password, default wolfssl
+-c <pem>    TLS Client Certificate, default certs/client-cert.pem
+-A <pem>    TLS CA Certificate, default ./certs/ca-cert.pem
 
 ```
-$ ./src/wolfkeymgr
-$ ./examples/etsi_client/etsi_client
+
+## Running the Key Manager and ETSI client
+
+```sh
+# Start Key Manager with Log Level 3 (Info) and two worker threads
+$ ./src/wolfkeymgr -l 3 -t 2
+Feb 24 16:24:04 2021: [INFO] Starting Key Manager
+Feb 24 16:24:04 2021: [INFO] Binding listener :::8119
+Feb 24 16:24:04 2021: [WARNING] Generating new ECC key (index 0)
+Feb 24 16:24:04 2021: [INFO] loaded CA certificate file ./certs/ca-cert.pem
+Feb 24 16:24:04 2021: [INFO] loaded key file ./certs/server-key.pem
+Feb 24 16:24:04 2021: [INFO] loaded certificate file ./certs/server-cert.pem
+Feb 24 16:24:04 2021: [INFO] Setting up new ETSI conn item pool
+Feb 24 16:24:04 2021: [INFO] Growing ETSI service conn pool
+Feb 24 16:24:04 2021: [INFO] Growing ETSI service conn pool
+Feb 24 16:24:11 2021: [INFO] Accepted a connection, sent to thread 0
+Feb 24 16:24:11 2021: [INFO] New ETSI service conn
+Feb 24 16:24:11 2021: [INFO] Got ETSI Request (103 bytes)
+Feb 24 16:24:11 2021: [INFO] Creating connection context
+Feb 24 16:24:11 2021: [INFO] Sent ETSI Response (194 bytes)
+Feb 24 16:24:11 2021: [INFO] EventCb what = 17
+Feb 24 16:24:11 2021: [INFO] Peer ended connection, closing
+
+^C
+Feb 24 16:24:15 2021: [INFO] SIGINT handled.
+Feb 24 16:24:15 2021: [INFO] Ending main thread loop
+Feb 24 16:24:15 2021: [INFO] Sending cancel to threads
+Feb 24 16:24:15 2021: [INFO] Joining threads
+Feb 24 16:24:15 2021: [INFO] Worker thread exiting, tid = 140694064588352
+Feb 24 16:24:15 2021: [INFO] Worker thread exiting, tid = 140694056195648
+Feb 24 16:24:15 2021: [INFO] Done with main thread dispatching
+Feb 24 16:24:15 2021: [ERROR] Current stats:
+total   connections  =                   1
+completed            =                   1
+timeouts             =                   0
+current connections  =                   0
+max     concurrent   =                   1
+uptime  in seconds   =                  11
+average response(ms) =               0.046
+Feb 24 16:24:15 2021: [INFO] Exit Key Manager (ret 0)
+
+
+# Start ETSI client with single GET request
+$ ./examples/etsi_client/etsi_client -l 3 -g
+Feb 24 16:24:11 2021: [INFO] Starting client
+Feb 24 16:24:11 2021: [INFO] Connected to ETSI service
+Feb 24 16:24:11 2021: [INFO] Sent single get request (103 bytes)
+Feb 24 16:24:11 2021: [INFO] Got ETSI response (121 bytes)
+Feb 24 16:24:11 2021: [INFO] Pub X: 4958C92FCF1D0C51A1969370B2CB2E846F25A3FBB5B9621020B338E7CCA8C53F
+Feb 24 16:24:11 2021: [INFO] Pub Y: 3EE0E7AF506A86380D11450A39BF3561917824F3A8BEC44AEF3B83C25F058DF9
 ```
+
+## Stress Testing ETSI Server / Client
+
+* Use the thread pool "-t" to spin up more threads.
+* Use the ETSI client "-r" to make additional requests per thread.
 
 
 ## ETSI (Enterprise Transport Security)
@@ -149,8 +241,7 @@ See Recommendation ITU-T X.509 (10/2016) | ISO/IEC 9594-8: "Information technolo
 
 ## Outstanding Features
 
-1) Add TLS mutual authentication to ETSI example.
-2) Add example for HTTP server "VisibilityInformation" extension.
+1) Add example for HTTP server "VisibilityInformation" extension.
 
 ## Support
 

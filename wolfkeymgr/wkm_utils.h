@@ -37,6 +37,7 @@ WOLFKM_API const char* wolfKeyMgr_GetError(int err);
 WOLFKM_API const char* wolfKeyMgr_GetLogLevel(enum log_level_t level);
 WOLFKM_API void wolfKeyMgr_Log(enum log_level_t, const char* fmt, ...) ATT_STRFUNC;
 WOLFKM_API void wolfKeyMgr_SetLogFile(const char* fileName, int daemon, enum log_level_t level);
+WOLFKM_API void wolfKeyMgr_CloseLog(void);
 
 WOLFKM_API double wolfGetCurrentTime(void);
 

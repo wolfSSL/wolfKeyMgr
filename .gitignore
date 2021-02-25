@@ -41,3 +41,18 @@ src/wolfkeymgr
 examples/etsi_client/etsi_client
 libtool
 wolfkeymgr/options.h
+
+# Generated Cert Files
+certs/ca-*.pem
+certs/ca-*.der
+certs/ca-*.crl
+certs/*.par
+certs/crlnumber*
+certs/serial
+certs/index*
+certs/tpm-*.csr
+certs/server-*.der
+certs/server-*.pem
+certs/client-*.der
+certs/client-*.pem
+certs/serial.old

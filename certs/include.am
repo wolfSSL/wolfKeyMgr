@@ -3,6 +3,10 @@
 # All paths should be given relative to the root
 
 
-EXTRA_DIST += certs/test-cert.pem
-EXTRA_DIST += certs/test-cert.sh
-EXTRA_DIST += certs/test-key.pem
+EXTRA_DIST += certs/gen-certs.sh
+EXTRA_DIST += certs/ca-key.pem
+EXTRA_DIST += certs/ca-cert.pem
+EXTRA_DIST += certs/client-key.pem
+EXTRA_DIST += certs/client-cert.pem
+EXTRA_DIST += certs/server-key.pem
+EXTRA_DIST += certs/server-cert.pem

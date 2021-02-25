@@ -62,10 +62,10 @@ enum  {
 
 /* Log levels */
 enum log_level_t {
-    WOLFKM_LOG_ERROR = 4,
-    WOLFKM_LOG_WARN  = 3,
-    WOLFKM_LOG_INFO  = 2,
-    WOLFKM_LOG_DEBUG = 1,
+    WOLFKM_LOG_ERROR = 1,
+    WOLFKM_LOG_WARN  = 2,
+    WOLFKM_LOG_INFO  = 3,
+    WOLFKM_LOG_DEBUG = 4,
     WOLFKM_DEFAULT_LOG_LEVEL = WOLFKM_LOG_DEBUG
 };
 
