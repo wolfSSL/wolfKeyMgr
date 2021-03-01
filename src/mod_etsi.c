@@ -23,17 +23,22 @@
 
 #include "wolfkeymgr/mod_etsi.h"
 
+#include <signal.h>
+
 struct EtsiClientCtx {
     WOLFSSL_CTX*   sslCtx;
     WOLFSSL*       ssl;
     EtsiClientType type;
+    wolfSSL_Mutex  lock;
 };
+
 
 EtsiClientCtx* wolfEtsiClientNew(void)
 {
     EtsiClientCtx* client = (EtsiClientCtx*)malloc(sizeof(EtsiClientCtx));
     if (client) {
         memset(client, 0, sizeof(EtsiClientCtx));
+        wc_InitMutex(&client->lock);
         client->sslCtx = wolfTlsClientNew();
         if (client->sslCtx == NULL) {
             XLOG(WOLFKM_LOG_ERROR, "Error creating TLS client!\n");
@@ -47,10 +52,14 @@ EtsiClientCtx* wolfEtsiClientNew(void)
 int wolfEtsiClientSetKey(EtsiClientCtx* client, const char* keyFile, 
     const char* keyPassword, const char* certFile, int fileType)
 {
+    int ret;
     if (client == NULL) {
         return WOLFKM_BAD_ARGS;
     }
-    return wolfTlsSetKey(client->sslCtx, keyFile, keyPassword, certFile, fileType);
+    wc_LockMutex(&client->lock);
+    ret = wolfTlsSetKey(client->sslCtx, keyFile, keyPassword, certFile, fileType);
+    wc_UnLockMutex(&client->lock);
+    return ret;
 }
 
 int wolfEtsiClientAddCA(EtsiClientCtx* client, const char* caFile)
@@ -60,7 +69,9 @@ int wolfEtsiClientAddCA(EtsiClientCtx* client, const char* caFile)
         return WOLFKM_BAD_ARGS;
     }
 
+    wc_LockMutex(&client->lock);
     ret = wolfTlsAddCA(client->sslCtx, caFile);
+    wc_UnLockMutex(&client->lock);
     return ret;
 }
 
@@ -73,6 +84,7 @@ int wolfEtsiClientConnect(EtsiClientCtx* client, const char* host,
         return WOLFKM_BAD_ARGS;
     }
 
+    wc_LockMutex(&client->lock);
     ret = wolfTlsConnect(client->sslCtx, &client->ssl, host, port, timeoutSec);
     if (ret == 0) {
         XLOG(WOLFKM_LOG_INFO, "Connected to ETSI service\n");
@@ -80,6 +92,7 @@ int wolfEtsiClientConnect(EtsiClientCtx* client, const char* host,
     else {
         XLOG(WOLFKM_LOG_ERROR, "Failure connecting to ETSI service %d\n", ret);   
     }
+    wc_UnLockMutex(&client->lock);
 
     return ret;
 }
@@ -125,12 +138,14 @@ int wolfEtsiClientGet(EtsiClientCtx* client,
         return WOLFKM_BAD_ARGS;
     }
 
+    wc_LockMutex(&client->lock);
+
     /* only send request if we need to */
     if (type != ETSI_CLIENT_PUSH || client->type != type) {
         ret = EtsiClientMakeRequest(type, fingerprint, request, &requestSz);
         if (ret != 0) {
             XLOG(WOLFKM_LOG_INFO, "EtsiClientMakeRequest failed: %d\n", ret);
-            return ret;
+            goto exit;
         }
 
         /* send key request */
@@ -141,7 +156,7 @@ int wolfEtsiClientGet(EtsiClientCtx* client,
             if (ret < 0) {
                 XLOG(WOLFKM_LOG_INFO, "DoClientSend failed: %d (%s)\n", ret,
                     wolfSSL_ERR_reason_error_string(ret));
-                return ret;
+                goto exit;
             }
             pos += ret;
         }
@@ -181,6 +196,9 @@ int wolfEtsiClientGet(EtsiClientCtx* client,
         XLOG(WOLFKM_LOG_INFO, "Got ETSI response (%d bytes)\n", *responseSz);
     }
 
+exit:
+    wc_UnLockMutex(&client->lock);
+
     return ret;
 }
 
@@ -204,8 +222,10 @@ int wolfEtsiClientClose(EtsiClientCtx* client)
     int ret = 0;
     if (client && client->ssl) {
         /* send shutdown */
+        wc_LockMutex(&client->lock);
         ret = wolfTlsClose(client->ssl, 1);
         client->ssl = NULL;
+        wc_UnLockMutex(&client->lock);
     }
     return ret;
 }
@@ -213,6 +233,7 @@ int wolfEtsiClientClose(EtsiClientCtx* client)
 void wolfEtsiClientFree(EtsiClientCtx* client)
 {
     if (client) {
+        wc_LockMutex(&client->lock);
         if (client->ssl) {
             wolfTlsClose(client->ssl, 0);
             client->ssl = NULL;
@@ -221,12 +242,17 @@ void wolfEtsiClientFree(EtsiClientCtx* client)
             wolfTlsFree(client->sslCtx);
             client->sslCtx = NULL;
         }
+        wc_UnLockMutex(&client->lock);
+        wc_FreeMutex(&client->lock);
         free(client);
     }
 }
 
 int wolfEtsiClientInit(void)
 {
+    /* Ignore SIGPIPE */
+    wolfSigIgnore(SIGPIPE);
+
 #if 0
     wolfSSL_Debugging_ON();
 #endif

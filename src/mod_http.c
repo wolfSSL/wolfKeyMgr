@@ -476,3 +476,39 @@ byte* wolfHttpUriDecode(const char *s, byte *dec)
     }
     return dec;
 }
+
+int wolfHttpUrlDecode(HttpUrl* url, char* s)
+{
+    char* dec;
+    if (url == NULL || s == NULL) {
+        return WOLFKM_BAD_ARGS;
+    }
+    memset(url, 0, sizeof(*url));
+
+    /* find :// */
+    dec = strstr(s, "://");
+    if (dec == NULL) {
+        return WOLFKM_BAD_ARGS;
+    }
+
+    *dec = '\0';
+    url->protocol = s;
+    s = dec+3;
+
+    /* find next "/" */
+    url->domain = s;
+    dec = strstr(s, "/");
+    if (dec) {
+        *dec = '\0';
+        url->path = dec+1;
+    }
+    
+    /* find ":" */
+    dec = strstr(s, ":");
+    if (dec) {
+        /* port specified */
+        url->port = atoi(dec+1);
+        *dec = '\0';
+    }
+    return 0;
+}

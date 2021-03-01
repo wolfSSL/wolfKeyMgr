@@ -823,19 +823,6 @@ static void AcceptCB(struct evconnlistener* listener, evutil_socket_t fd,
 
 
 /* --- PUBLIC FUNCTIONS --- */
-/* Clear action on supplied sig event */
-int wolfKeyMgr_SigIgnore(int sig)
-{
-    struct sigaction sa;
-
-    sa.sa_handler = SIG_IGN;
-    sa.sa_flags = 0;
-
-    if (sigemptyset(&sa.sa_mask) == -1 || sigaction(sig, &sa, 0) == -1)
-        return -1;
-
-    return 0;
-}
 
 /* Our signal handler callback */
 void wolfKeyMgr_SignalCb(evutil_socket_t fd, short event, void* arg)

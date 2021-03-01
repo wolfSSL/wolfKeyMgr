@@ -30,7 +30,7 @@ typedef struct etsiSvcCtx {
     ecc_key         key;  /* last generated key */
     WC_RNG          rng;
     double          last; /* time last generated */
-    word32          timeoutSec;
+    word32          renewSec;
     word32          index;
     pthread_mutex_t lock; /* queue lock */
     pthread_t       thread; /* key gen worker */
@@ -171,8 +171,8 @@ static void* KeyPushWorker(void* arg)
         /* push to any connected clients */
         wolfKeyMgr_NotifyAllClients(svc);
 
-        /* wait timeoutSec */
-        sleep(svcCtx->timeoutSec);
+        /* wait seconds */
+        sleep(svcCtx->renewSec);
     } while (1);
 
     return NULL;
@@ -342,7 +342,7 @@ void wolfEtsiSvc_WorkerFree(svcInfo* svc, void* svcThreadCtx)
 #endif /* WOLFKM_ETSI_SERVICE */
 
 
-svcInfo* wolfEtsiSvc_Init(struct event_base* mainBase, int timeoutSec)
+svcInfo* wolfEtsiSvc_Init(struct event_base* mainBase, int renewSec)
 {
 #ifdef WOLFKM_ETSI_SERVICE
     int ret;
@@ -358,9 +358,7 @@ svcInfo* wolfEtsiSvc_Init(struct event_base* mainBase, int timeoutSec)
 
     pthread_mutex_init(&svcCtx->lock, NULL);
 
-    /* use the timeout to trigger sending new set of keys */
-    wolfKeyMgr_SetTimeout(svc, timeoutSec);
-    svcCtx->timeoutSec = timeoutSec;
+    svcCtx->renewSec = renewSec;
 
     /* start key generation thread */
     if (pthread_create(&svcCtx->thread, NULL, KeyPushWorker, svc) != 0) {
@@ -383,8 +381,8 @@ svcInfo* wolfEtsiSvc_Init(struct event_base* mainBase, int timeoutSec)
     return svc;
 #else
     (void)mainBase;
-    (void)timeoutSec;
-    (void)disableMutalAuth;
+    (void)renewSec;
+
     return NULL;
 #endif
 }

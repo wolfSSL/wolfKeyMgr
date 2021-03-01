@@ -37,6 +37,7 @@ static void Usage(void)
                           WOLFKM_DEFAULT_LOG_NAME ? WOLFKM_DEFAULT_LOG_NAME : "None");
     printf("-o <num>    Max open files, default  %d\n", WOLFKM_DEFAULT_FILES);
     printf("-s <num>    Seconds to timeout, default %d\n", WOLFKM_DEFAULT_TIMEOUT);
+    printf("-r <num>    Key renewal timeout, default %d\n", WOLFKM_KEY_RENEW_TIMEOUT);
     printf("-t <num>    Thread pool size, default  %ld\n",
                                                  sysconf(_SC_NPROCESSORS_CONF));
     printf("-d          TLS Disable Mutual Authentication\n");
@@ -70,7 +71,8 @@ int main(int argc, char** argv)
     struct event_base*      mainBase = NULL;    /* main thread's base  */
     FILE*                   pidF = 0;
     svcInfo* etsiSvc = NULL;
-    word32 timeoutSec  = WOLFKM_DEFAULT_TIMEOUT;
+    int sec;
+    word32 timeoutSec  = WOLFKM_DEFAULT_TIMEOUT, renewSec = WOLFKM_KEY_RENEW_TIMEOUT;
     int disableMutualAuth = 0; /* on by default */
     const char* serverKey = WOLFKM_ETSISVC_KEY;
     const char* serverKeyPass = WOLFKM_ETSISVC_KEY_PASSWORD;
@@ -79,7 +81,7 @@ int main(int argc, char** argv)
     signalArg sigArgInt, sigArgTerm;
 
     /* argument processing */
-    while ((ch = getopt(argc, argv, "?bis:t:o:f:l:dk:w:c:A:")) != -1) {
+    while ((ch = getopt(argc, argv, "?bis:t:o:f:l:dk:w:c:A:r:")) != -1) {
         switch (ch) {
             case '?' :
                 Usage();
@@ -91,15 +93,13 @@ int main(int argc, char** argv)
                 core = 1;
                 break;
             case 's' :
-            {
-                int sec = atoi(optarg);
+                sec = atoi(optarg);
                 if (sec < 0) {
                     perror("timeout positive values only accepted");
                     exit(EX_USAGE);
                 }
                 timeoutSec = (word32)sec;
                 break;
-            }
             case 't' :
                 poolSize = atoi(optarg);
                 break;
@@ -133,6 +133,14 @@ int main(int argc, char** argv)
                 break;
             case 'A':
                 caCert = optarg;
+                break;
+            case 'r':
+                sec = atoi(optarg);
+                if (sec < 0) {
+                    perror("timeout positive values only accepted");
+                    exit(EX_USAGE);
+                }
+                renewSec = (word32)sec;
                 break;
 
             default:
@@ -185,7 +193,7 @@ int main(int argc, char** argv)
     }
 
     /* setup signal stuff */
-    if (wolfKeyMgr_SigIgnore(SIGPIPE) == -1) {
+    if (wolfSigIgnore(SIGPIPE) == -1) {
         XLOG(WOLFKM_LOG_ERROR, "Failed to ignore SIGPIPE\n");
         ret = EX_OSERR; goto exit;
     }
@@ -201,8 +209,11 @@ int main(int argc, char** argv)
     wolfKeyMgr_SetMaxFiles(maxFiles);
 
     /********** ETSI Service **********/
-    etsiSvc = wolfEtsiSvc_Init(mainBase, timeoutSec);
+    etsiSvc = wolfEtsiSvc_Init(mainBase, renewSec);
     if (etsiSvc) {
+        /* set socket timeut */
+        wolfKeyMgr_SetTimeout(etsiSvc, timeoutSec);
+
         ret = wolfKeyMgr_LoadCAFile(etsiSvc, caCert, WOLFSSL_FILETYPE_PEM);
         if (ret != 0) {
             XLOG(WOLFKM_LOG_ERROR, "Error loading ETSI TLS CA cert\n");

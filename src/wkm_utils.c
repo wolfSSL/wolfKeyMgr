@@ -24,6 +24,8 @@
 #include <time.h>
 #include <sys/time.h>
 
+#include <signal.h>
+
 /* our log file */
 static FILE* logFile = NULL;
 static enum log_level_t logLevel = WOLFKM_DEFAULT_LOG_LEVEL;
@@ -258,5 +260,19 @@ int wolfSaveFile(const char* file, byte* buffer, word32 length)
         XLOG(WOLFKM_LOG_ERROR, "fwrite failed\n");
         return -1;
     }
+    return 0;
+}
+
+/* Clear action on supplied sig event */
+int wolfSigIgnore(int sig)
+{
+    struct sigaction sa;
+
+    sa.sa_handler = SIG_IGN;
+    sa.sa_flags = 0;
+
+    if (sigemptyset(&sa.sa_mask) == -1 || sigaction(sig, &sa, 0) == -1)
+        return -1;
+
     return 0;
 }

@@ -187,7 +187,6 @@ WOLFKM_LOCAL int  wolfKeyMgr_MakeDaemon(int chDir);
 WOLFKM_LOCAL void wolfKeyMgr_SetMaxFiles(int max);
 WOLFKM_LOCAL void wolfKeyMgr_SetCore(void);
 WOLFKM_LOCAL void wolfKeyMgr_SignalCb(evutil_socket_t fd, short event, void* arg);
-WOLFKM_LOCAL int  wolfKeyMgr_SigIgnore(int sig);
 WOLFKM_LOCAL void wolfKeyMgr_ShowStats(svcInfo* svc);
 WOLFKM_LOCAL FILE* wolfKeyMgr_GetPidFile(const char* pidFile, pid_t pid);
 WOLFKM_LOCAL void wolfKeyMgr_SetTimeout(svcInfo* svc, word32 timeoutSec);

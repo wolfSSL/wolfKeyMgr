@@ -99,12 +99,13 @@ wolfKeyManager 0.3
 -f <str>    Log file name, default None
 -o <num>    Max open files, default  1024
 -s <num>    Seconds to timeout, default 60
+-r <num>    Key renewal timeout, default 3600
 -t <num>    Thread pool size, default  48
 -d          TLS Disable Mutual Authentication
 -k <pem>    TLS Server TLS Key, default ./certs/server-key.pem
 -w <pass>   TLS Server Key Password, default wolfssl
 -c <pem>    TLS Server Certificate, default ./certs/server-cert.pem
--c <pem>    TLS CA Certificate, default ./certs/ca-cert.pem
+-A <pem>    TLS CA Certificate, default ./certs/ca-cert.pem
 ```
 
 ```sh

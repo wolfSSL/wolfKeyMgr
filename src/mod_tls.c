@@ -142,7 +142,6 @@ int wolfTlsAddCA(WOLFSSL_CTX* ctx, const char* caFile)
     if (ret != WOLFSSL_SUCCESS) {
         XLOG(WOLFKM_LOG_ERROR, "Can't load TLS CA %s into context. Error: %s (%d)\n", 
             caFile, wolfSSL_ERR_reason_error_string(ret), ret);
-        wolfSSL_CTX_free(ctx);
         return WOLFKM_BAD_FILE;
     }
 

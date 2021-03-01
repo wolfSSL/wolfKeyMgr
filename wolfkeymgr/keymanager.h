@@ -52,6 +52,7 @@
 enum ProgramConstMisc {
     WOLFKM_DEFAULT_FILES       =  1024,        /* default max open files */
     WOLFKM_DEFAULT_TIMEOUT     =    60,        /* default timeout in seconds */
+    WOLFKM_KEY_RENEW_TIMEOUT   =  3600,        /* key renewal timeout (1 hour) */
     WOLFKM_CONN_ITEMS          =  1024,        /* new conn item pool size */
     WOLFKM_BACKOFF_TIME        = 10000,        /* in microseconds */
 };

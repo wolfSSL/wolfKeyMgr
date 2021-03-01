@@ -130,6 +130,13 @@ typedef struct HttpRsp {
     word32         bodySz;
 } HttpRsp;
 
+typedef struct HttpUrl {
+    char* protocol;
+    char* domain;
+    word16 port;
+    char* path;
+} HttpUrl;
+
 WOLFKM_API const char* wolfHttpGetMethodStr(HttpMethodType type, word32* strLen);
 WOLFKM_API const char* wolfHttpGetHeaderStr(HttpHeaderType type, word32* strLen);
 
@@ -148,6 +155,8 @@ WOLFKM_API void wolfHttpResponsePrint(HttpRsp* rsp);
 WOLFKM_API char* wolfHttpUriEncode(const byte *s, char *enc);
 WOLFKM_API byte* wolfHttpUriDecode(const char *s, byte *dec);
 
+
+WOLFKM_API int wolfHttpUrlDecode(HttpUrl* url, char* s);
 
 #ifdef __cplusplus
 }

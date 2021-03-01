@@ -45,6 +45,7 @@ WOLFKM_API int wolfLoadFileBuffer(const char* fileName, byte** buffer, word32* s
 WOLFKM_API void wolfPrintBin(const byte* buffer, word32 length);
 WOLFKM_API int wolfSaveFile(const char* file, byte* buffer, word32 length);
 
+WOLFKM_API int wolfSigIgnore(int sig);
 
 /* misc functions */
 #if !defined(min) && !defined(WOLFSSL_HAVE_MIN)

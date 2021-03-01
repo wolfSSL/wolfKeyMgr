@@ -33,7 +33,7 @@ extern "C" {
 #define WOLFKM_ETSISVC_CERT         "./certs/server-cert.pem"
 
 
-WOLFKM_LOCAL svcInfo* wolfEtsiSvc_Init(struct event_base* mainBase, int timeoutSec);
+WOLFKM_LOCAL svcInfo* wolfEtsiSvc_Init(struct event_base* mainBase, int renewSec);
 WOLFKM_LOCAL void wolfEtsiSvc_Cleanup(svcInfo* svc);
 
 WOLFKM_LOCAL int wolfEtsiSvc_WorkerInit(svcInfo* svc, void** svcThreadCtx);
