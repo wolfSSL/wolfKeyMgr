@@ -53,16 +53,23 @@ $ sudo make install
 
 2. Install wolfssl version 3.4.2+
 
+Note: Requires at least wolfSSL v4.7.0 with PR https://github.com/wolfSSL/wolfssl/pull/3832
+
 ```sh
-$ ./configure --enable-certservice --enable-sniffer CFLAGS="-DWOLFSSL_DH_EXTRA"
+$ ./autogen.sh
+$ git clone https://github.com/wolfssl/wolfssl
+$ cd wolfssl
+$ ./autogen.sh
+$ ./configure --enable-sniffer CFLAGS="-DWOLFSSL_DH_EXTRA -DWOLFSSL_SNIFFER_WATCH"
 $ make
 $ make check   # (optional, but highly recommended)
 $ sudo make install
 ```
 
 Notes:
-* To enable all Intel speedups use `--enable-intelasm --enable-sp --enable-sp-asm`
-* To enable all Aarch64 speedups use `--enable-armasm --enable-sp --enable-sp-asm`
+
+* To enable all Intel (AESNI/AVX) speedups use `--enable-intelasm --enable-sp --enable-sp-asm`
+* To enable all ARMv8 (aarch64) speedups use `--enable-armasm --enable-sp --enable-sp-asm`
 
 3. Building wolfKeyMgr on *nix from git repository
 

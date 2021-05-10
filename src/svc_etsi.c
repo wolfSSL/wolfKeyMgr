@@ -114,6 +114,8 @@ static int SetupKeyPackage(etsiSvcCtx* svcCtx, etsiSvcThread* etsiThread)
     headers[0].string = "application/pkcs8";
     headers[1].type = HTTP_HDR_CONNECTION;
     headers[1].string = "Keep-Alive";
+    /* TODO: Add key expiration using HTTP_HDR_EXPIRES */
+    /* Example "Expires: Wed, 21 Oct 2015 07:28:00 GMT" */
 
     pthread_mutex_lock(&svcCtx->lock);
     if (etsiThread->index != svcCtx->index) {

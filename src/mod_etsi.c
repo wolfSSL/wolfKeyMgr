@@ -101,18 +101,20 @@ static int EtsiClientMakeRequest(EtsiClientType type, const char* fingerprint,
     byte* request, word32* requestSz)
 {
     int ret;
+    char uri[128]; /* 62 + fingerprint */
     HttpHeader headers[1];
     headers[0].type = HTTP_HDR_ACCEPT;
     headers[0].string = "application/pkcs8";
     
     /* Build HTTP ETSI request */
     if (type == ETSI_CLIENT_PUSH) {
-        const char* uri = "/enterprise-transport-security/keys";
+        snprintf(uri, sizeof(uri), 
+            "/enterprise-transport-security/keys?fingerprints=%s",
+            fingerprint == NULL ? "" : fingerprint);
         ret = wolfHttpClient_EncodeRequest(HTTP_METHOD_PUT, uri, request,
             requestSz, headers, sizeof(headers)/sizeof(HttpHeader));
     }
     else {
-        char uri[128]; /* 62 + fingerprint */
         snprintf(uri, sizeof(uri), 
             "/.well-known/enterprise-transport-security/keys?fingerprints=%s",
             fingerprint == NULL ? "" : fingerprint);
@@ -172,7 +174,7 @@ int wolfEtsiClientGet(EtsiClientCtx* client,
             XLOG(WOLFKM_LOG_ERROR, "DoClientRead failed: %d\n", ret);
             break;
         }
-        /* zero respnse means try again */
+        /* zero response means try again */
     } while (ret == 0);
     
     if (ret > 0) {

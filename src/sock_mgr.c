@@ -160,6 +160,12 @@ static void OurListenerError(struct evconnlistener* listener, void* ptr)
         XLOG(WOLFKM_LOG_WARN, "Backing off listener, no open files\n");
         usleep(WOLFKM_BACKOFF_TIME);
     }
+    /* for invalid argument disable listener */
+    if (err == EINVAL) {
+        /* this can happen if ss -kill socket is run */
+        /* otherwise causes libevent error callback loop */
+        evconnlistener_disable(listener);
+    }
 }
 
 /* Initialize the connection queue */

@@ -185,6 +185,10 @@ int main(int argc, char** argv)
 #endif
     wolfSSL_Init();
 
+    /* Initialize variables */
+    memset(&sigArgInt, 0, sizeof(sigArgInt));
+    memset(&sigArgTerm, 0, sizeof(sigArgTerm));
+
     /* main thread base event */
     mainBase = event_base_new();
     if (mainBase == NULL) {
@@ -237,8 +241,6 @@ int main(int argc, char** argv)
         wolfKeyMgr_ServiceInit(etsiSvc, poolSize);
     }
 
-    memset(&sigArgInt, 0, sizeof(sigArgInt));
-    memset(&sigArgTerm, 0, sizeof(sigArgTerm));
     sigArgInt.svc[0] = etsiSvc;
     sigArgTerm.svc[0] = etsiSvc;
 

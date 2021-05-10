@@ -16,7 +16,6 @@ AC_DEFUN([_WOLF_SEARCH_LIBWOLFSSL],[
     #include <wolfssl/ssl.h>
   ],[
     wolfSSL_Init();
-    wolfSSL_cert_service();
   ]) 
 
   AM_CONDITIONAL(HAVE_LIBWOLFSSL, [test "x${ac_cv_libwolfssl}" = "xyes"])
@@ -50,7 +49,7 @@ AC_DEFUN([_WOLF_REQUIRE_LIBWOLFSSL],[
   _WOLF_SEARCH_LIBWOLFSSL
 
   AS_IF([test x$ac_cv_libwolfssl = xno],[
-    AC_MSG_ERROR([libwolfssl is required for ${PACKAGE}, it should be built with --enable-certservice. It can be obtained from http://www.wolfssl.com/download.html/])
+    AC_MSG_ERROR([libwolfssl is required for ${PACKAGE}. It can be obtained from http://www.wolfssl.com/download.html/])
   ])
 ])
 

@@ -39,7 +39,7 @@ const char* wolfKeyMgr_GetError(int err)
         case WOLFKM_BAD_MEMORY:
             return "Bad memory allocation";
         case WOLFKM_BAD_FILE:
-            return "Error openning file";
+            return "Error opening file";
         case WOLFKM_BAD_KEY:
             return "Error loading key";
         case WOLFKM_BAD_CERT:

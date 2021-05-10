@@ -9,4 +9,4 @@ examples_etsi_client_etsi_client_CFLAGS       = -Isrc
 examples_etsi_client_etsi_client_LDFLAGS      = -Lsrc
 examples_etsi_client_etsi_client_LDADD        = src/libwolfkeymgr.la $(LIB_STATIC_ADD)
 examples_etsi_client_etsi_client_DEPENDENCIES = src/libwolfkeymgr.la
-EXTRA_DIST += 
+EXTRA_DIST += examples/etsi_client/etsi_client.h

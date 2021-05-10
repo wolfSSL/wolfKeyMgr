@@ -15,7 +15,6 @@ AC_DEFUN([_TAO_SEARCH_LIBCYASSL],[
     #include <cyassl/ssl.h>
   ],[
     CyaSSL_Init();
-    CyaSSL_cert_service();
   ]) 
 
   AM_CONDITIONAL(HAVE_LIBCYASSL, [test "x${ac_cv_libcyassl}" = "xyes"])
@@ -49,7 +48,7 @@ AC_DEFUN([_TAO_REQUIRE_LIBCYASSL],[
   _TAO_SEARCH_LIBCYASSL
 
   AS_IF([test x$ac_cv_libcyassl = xno],[
-    AC_MSG_ERROR([libcyassl is required for ${PACKAGE}, it should be built with --enable-certservice. It can be obtained from http://www.yassl.com/download.html/])
+    AC_MSG_ERROR([libcyassl is required for ${PACKAGE}. It can be obtained from http://www.yassl.com/download.html/])
   ])
 ])
 

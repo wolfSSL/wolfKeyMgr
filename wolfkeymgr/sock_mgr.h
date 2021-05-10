@@ -175,13 +175,6 @@ struct eventThread {
 };
 
 
-typedef struct KeyManager {
-    struct event_base* mainBase;
-    FILE*              pidF;
-} KeyManager_t;
-
-
-
 /* Key Manager Functions */
 WOLFKM_LOCAL int  wolfKeyMgr_MakeDaemon(int chDir);
 WOLFKM_LOCAL void wolfKeyMgr_SetMaxFiles(int max);

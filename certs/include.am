@@ -10,3 +10,5 @@ EXTRA_DIST += certs/client-key.pem
 EXTRA_DIST += certs/client-cert.pem
 EXTRA_DIST += certs/server-key.pem
 EXTRA_DIST += certs/server-cert.pem
+EXTRA_DIST += certs/test-cert.pem
+EXTRA_DIST += certs/test-key.pem

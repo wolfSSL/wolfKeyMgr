@@ -56,3 +56,4 @@ certs/server-*.pem
 certs/client-*.der
 certs/client-*.pem
 certs/serial.old
+options.h
