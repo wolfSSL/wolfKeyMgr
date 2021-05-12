@@ -44,6 +44,7 @@ typedef struct WorkThreadInfo {
     const char* keyPass;
     const char* clientCertFile;
     const char* caFile;
+    WOLFSSL_CTX* ctx; /* test ctx loading static ephemeral key */
 } WorkThreadInfo;
 
 
@@ -55,57 +56,50 @@ static int DoErrorMode(void)
     return 0;
 }
 
-/* ETSI Asymmetric Key Request */
-static int DoKeyRequest(EtsiClientCtx* client, int useGet, char* saveResp,
-    int timeoutSec)
+static int keyCb(EtsiClientCtx* client, EtsiKey* key, void* userCtx)
 {
-    int     ret;
-    EtsiClientType type;
-    byte    response[ETSI_MAX_RESPONSE_SZ];
-    word32  responseSz;
-    ecc_key key;
+    int ret = 0;
+    WorkThreadInfo* info = (WorkThreadInfo*)userCtx;
 
-    if (useGet) {
-        type = ETSI_CLIENT_GET;
+    /* test use-case setting static ephemeral key */
+    if (info->ctx) {
+        ret = wolfSSL_CTX_set_ephemeral_key(info->ctx,
+            WC_PK_TYPE_ECDH, key->response, key->responseSz,
+            WOLFSSL_FILETYPE_ASN1);
+    }
+    wolfEtsiKeyPrint(key);
+    if (info->saveResp != NULL) {
+        wolfSaveFile(info->saveResp, (byte*)key->response, key->responseSz);
+    }
+
+    return ret; /* non-zero will close client */
+}
+
+/* ETSI Asymmetric Key Request */
+static int DoKeyRequest(EtsiClientCtx* client, WorkThreadInfo* info)
+{
+    int ret;
+    EtsiKeyType keyType = ETSI_KEY_TYPE_SECP256R1;
+
+    /* push: will wait for server to push new keys */
+    /* get:  will ask server for key and return */
+    if (info->useGet) {
+        EtsiKey key;
+        memset(&key, 0, sizeof(key));
+
+        ret = wolfEtsiClientGet(client, &key, keyType, NULL, NULL, info->timeoutSec);
+        if (ret == 0) {
+            keyCb(client, &key, info);
+        }
     }
     else {
-        type = ETSI_CLIENT_PUSH;
+        /* blocking call and new keys from server will issue callback */
+        ret = wolfEtsiClientPush(client, keyType, NULL, NULL, keyCb, info);
     }
 
-    /* for push run until error */
-    do {
-        responseSz = sizeof(response);
-        ret = wolfEtsiClientGet(client, type, NULL, timeoutSec,
-            response, &responseSz);
-        if (ret == 0) {
-            ret = wc_ecc_init(&key);
-            if (ret == 0) {
-                ret = wolfEtsiLoadKey(&key, response, responseSz);
-                if (ret == 0) {
-                    byte pubX[32*2+1], pubY[32*2+1];
-                    word32 pubXLen = sizeof(pubX), pubYLen = sizeof(pubY);
-                    ret = wc_ecc_export_ex(&key,
-                        pubX, &pubXLen,
-                        pubY, &pubYLen, 
-                        NULL, NULL, WC_TYPE_HEX_STR);
-                    if (ret == 0) {
-                        XLOG(WOLFKM_LOG_INFO, "Pub X: %s\n", pubX);
-                        XLOG(WOLFKM_LOG_INFO, "Pub Y: %s\n", pubY);
-
-                        if (saveResp) {
-                            wolfSaveFile(saveResp, response, responseSz);
-                        }
-                    }
-                }
-                wc_ecc_free(&key);
-            }
-        }
-
-        if (ret != 0) {
-            XLOG(WOLFKM_LOG_INFO, "ETSI Key Request Failed! %d\n", ret);
-        }
-    } while (!useGet && ret == 0);
-
+    if (ret != 0) {
+        XLOG(WOLFKM_LOG_INFO, "ETSI Key Request Failed! %d\n", ret);
+    }
     return ret;
 }
 
@@ -132,14 +126,19 @@ static void* DoRequests(void* arg)
     ret = wolfEtsiClientConnect(client, info->host, info->port, 
         info->timeoutSec);
     if (ret == 0) {
+        /* setup test CTX to demonstrate loading static ephemeral */
+        info->ctx = wolfSSL_CTX_new(wolfTLSv1_3_server_method());
+
         for (i = 0; i < info->requests; i++) {
-            ret = DoKeyRequest(client, info->useGet, info->saveResp,
-                info->timeoutSec);
+            ret = DoKeyRequest(client, info);
             if (ret != 0) {
                 XLOG(WOLFKM_LOG_ERROR, "DoKeyRequest failed: %d\n", ret);
                 break;
             }
         }
+
+        wolfSSL_CTX_free(info->ctx);
+        info->ctx = NULL;
     }
 
     wolfEtsiClientFree(client);
@@ -162,7 +161,7 @@ static void Usage(void)
     printf("-r <num>    Requests per thread, default %d\n",
                                                           WOLFKM_DEFAULT_REQUESTS);
     printf("-f <file>   <file> to store ETSI response\n");
-    printf("-g          Use HTTP GET (default is Push with HTTP PUT)\n");
+    printf("-u          Use ETSI Push (default is get)\n");
     printf("-s <sec>    Timeout seconds (default %d)\n", WOLFKM_ETST_CLIENT_DEF_TIMEOUT_SEC);
 
     printf("-k <pem>    TLS Client TLS Key, default %s\n", WOLFKM_ETSICLIENT_KEY);
@@ -190,13 +189,14 @@ int main(int argc, char** argv)
     info.keyPass = WOLFKM_ETSICLIENT_PASS;
     info.clientCertFile = WOLFKM_ETSICLIENT_CERT;
     info.caFile = WOLFKM_ETSICLIENT_CA;
+    info.useGet = 1;
 
 #ifdef DISABLE_SSL
     usingTLS = 0;    /* can only disable at build time */
 #endif
 
     /* argument processing */
-    while ((ch = getopt(argc, argv, "?eh:p:t:l:r:f:gs:k:w:c:A:")) != -1) {
+    while ((ch = getopt(argc, argv, "?eh:p:t:l:r:f:gus:k:w:c:A:")) != -1) {
         switch (ch) {
             case '?' :
                 Usage();
@@ -227,7 +227,10 @@ int main(int argc, char** argv)
                 }
                 break;
             case 'g':
-                info.useGet = 1;
+                /* keeping -g GET option for backwards compatibility (on by default) */
+                break;
+            case 'u':
+                info.useGet = 0;
                 break;
             case 's' :
                 info.timeoutSec = atoi(optarg);
@@ -270,14 +273,14 @@ int main(int argc, char** argv)
         /* thread id holder */
         tids = calloc(poolSize, sizeof(pthread_t));
         if (tids == NULL) {
-            XLOG(WOLFKM_LOG_ERROR, "calloc tids failed");
+            XLOG(WOLFKM_LOG_ERROR, "calloc tids failed\n");
             exit(EXIT_FAILURE);
         }
 
         /* create workers */
         for (i = 0; i < poolSize; i++) {
             if (pthread_create(&tids[i], NULL, DoRequests, &info) != 0){
-                XLOG(WOLFKM_LOG_ERROR, "pthread_create failed");
+                XLOG(WOLFKM_LOG_ERROR, "pthread_create failed\n");
                 exit(EXIT_FAILURE);
             }
         }

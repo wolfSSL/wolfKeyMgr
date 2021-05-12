@@ -42,7 +42,7 @@ static int build_addr(SOCKADDR_IN_T* addr, const char* peer, word16 port)
     (void)useLookup;
 
     if (addr == NULL) {
-        XLOG(WOLFKM_LOG_ERROR, "invalid argument to build_addr, addr is NULL");
+        XLOG(WOLFKM_LOG_ERROR, "invalid argument to build_addr, addr is NULL\n");
         return WOLFKM_BAD_ARGS;
     }
 
@@ -58,7 +58,7 @@ static int build_addr(SOCKADDR_IN_T* addr, const char* peer, word16 port)
             useLookup = 1;
         }
         else {
-            XLOG(WOLFKM_LOG_ERROR, "no entry for host");
+            XLOG(WOLFKM_LOG_ERROR, "no entry for host\n");
             return WOLFKM_BAD_HOST;
         }
     }
@@ -94,7 +94,7 @@ static int build_addr(SOCKADDR_IN_T* addr, const char* peer, word16 port)
 
         ret = getaddrinfo(peer, strPort, &hints, &answer);
         if (ret < 0 || answer == NULL) {
-            XLOG(WOLFKM_LOG_ERROR, "getaddrinfo failed");
+            XLOG(WOLFKM_LOG_ERROR, "getaddrinfo failed\n");
             return WOLFKM_BAD_HOST;
         }
 
@@ -120,7 +120,7 @@ static int tcp_socket(WKM_SOCKET_T* sockfd)
 int wolfSockConnect(WKM_SOCKET_T* sockfd, const char* ip, word16 port,
     int timeoutSec)
 {
-    int ret, err;
+    int ret, err = 0;
     SOCKADDR_IN_T addr;
     
     ret = build_addr(&addr, ip, port);
@@ -142,7 +142,8 @@ int wolfSockConnect(WKM_SOCKET_T* sockfd, const char* ip, word16 port,
                 /* wait on send or error */
                 ret = wolfSockSelect(*sockfd, timeoutSec, 0);
                 if (ret == WKM_SOCKET_SELECT_SEND_READY) {
-                    ret = 0; /* completed successfully */
+                    /* make sure socket is not reporting an error */
+                    ret = wolfSocketGetError(*sockfd, &err);
                 }
                 else {
                     ret = WOLFKM_BAD_TIMEOUT;
@@ -150,10 +151,14 @@ int wolfSockConnect(WKM_SOCKET_T* sockfd, const char* ip, word16 port,
             }
         }
     }
-    if (ret != 0) {
+    else {
         err = wolfSocketLastError(ret);
-        XLOG(WOLFKM_LOG_ERROR, "tcp connect failed: %d (%s)", 
+    }
+
+    if (err != 0) {
+        XLOG(WOLFKM_LOG_ERROR, "tcp connect failed: %d (%s)\n", 
             err, strerror(err));
+        ret = err;
     }
 
     return ret;
@@ -190,14 +195,16 @@ int wolfSockSelect(WKM_SOCKET_T sockfd, int timeoutSec, int rx)
     if (res == 0)
         return WKM_SOCKET_SELECT_TIMEOUT;
     else if (res > 0) {
-        if (FD_ISSET(sockfd, &fds)) {
+        /* check error first, then rx/tx */
+        if (FD_ISSET(sockfd, &errfds)) {
+            return WKM_SOCKET_SELECT_ERROR_READY;
+        }
+        else if (FD_ISSET(sockfd, &fds)) {
             if (rx)
                 return WKM_SOCKET_SELECT_RECV_READY;
             else
                 return WKM_SOCKET_SELECT_SEND_READY;
         }
-        else if(FD_ISSET(sockfd, &errfds))
-            return WKM_SOCKET_SELECT_ERROR_READY;
     }
 
     return WKM_SOCKET_SELECT_FAIL;
@@ -251,6 +258,12 @@ void wolfSocketClose(WKM_SOCKET_T sockfd)
         close(sockfd);
     #endif
     }
+}
+
+int wolfSocketGetError(WKM_SOCKET_T sockfd, int* so_error)
+{
+    socklen_t len = (socklen_t)sizeof(*so_error);
+    return getsockopt(sockfd, SOL_SOCKET, SO_ERROR, so_error, &len);
 }
 
 int wolfSocketLastError(int err)

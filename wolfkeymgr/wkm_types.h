@@ -31,15 +31,33 @@
 #include <stdarg.h>
 #include <stdint.h>
 
+#define __USE_XOPEN /* enables strptime */
+#include <time.h>
+
 #include <wolfssl/options.h>
 #include <wolfssl/wolfcrypt/settings.h>
 #include <wolfssl/wolfcrypt/types.h>
-#include <wolfssl/wolfcrypt/ecc.h>
 
+#ifdef HAVE_ECC
+#include <wolfssl/wolfcrypt/ecc.h>
+#endif
+#ifndef NO_DH
+#include <wolfssl/wolfcrypt/dh.h>
+    #ifndef WOLFSSL_DH_EXTRA
+        #error DH requires WOLFSSL_DH_EXTRA for DHE key export/import support
+    #endif
+#endif
+#ifdef HAVE_CURVE25519
+#include <wolfssl/wolfcrypt/curve25519.h>
+#endif
+#ifdef HAVE_CURVE448
+#include <wolfssl/wolfcrypt/curve448.h>
+#endif
 
 #ifdef WOLFKM_ETSI_SERVICE
-    #ifndef HAVE_ECC
-        #error This service requires ECC support
+    #if !defined(HAVE_ECC) && defined(NO_DH) && !defined(HAVE_CURVE25519) && \
+        !defined(HAVE_CURVE448)
+        #error This service requires ECC, DH, X25519 or X448 support
     #endif
 #endif
 

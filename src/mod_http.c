@@ -86,6 +86,9 @@ const char* wolfHttpGetHeaderStr(HttpHeaderType type, word32* strLen)
         case HTTP_HDR_HOST:
             str = "Host: ";
             break;
+        case HTTP_HDR_EXPIRES:
+            str = "Expires: ";
+            break;
         /* TODO: Add more header types */
 
         default:
@@ -279,9 +282,9 @@ int wolfHttpServer_EncodeResponse(int rspCode, const char* message,
     return 0;
 }
 
-int wolfHttpClient_ParseResponse(HttpRsp* rsp, byte* buf, word32 sz)
+int wolfHttpClient_ParseResponse(HttpRsp* rsp, char* buf, word32 sz)
 {
-    char* sec = (char*)buf, *endline;
+    char* sec = buf, *endline;
     word32 len = sz;
     word32 itemSz;
 

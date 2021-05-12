@@ -40,6 +40,7 @@ WOLFKM_API void wolfKeyMgr_SetLogFile(const char* fileName, int daemon, enum log
 WOLFKM_API void wolfKeyMgr_CloseLog(void);
 
 WOLFKM_API double wolfGetCurrentTime(void);
+WOLFKM_API time_t wolfGetCurrentTimeT(void);
 
 WOLFKM_API int wolfLoadFileBuffer(const char* fileName, byte** buffer, word32* sz);
 WOLFKM_API void wolfPrintBin(const byte* buffer, word32 length);

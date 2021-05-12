@@ -117,7 +117,7 @@ WOLFSSL_CTX* wolfTlsClientNew(void)
 {
     WOLFSSL_CTX* ctx = wolfSSL_CTX_new(wolfTLSv1_3_client_method());
     if (ctx == NULL) {
-        XLOG(WOLFKM_LOG_ERROR, "Can't alloc TLS 1.3 context");
+        XLOG(WOLFKM_LOG_ERROR, "Can't alloc TLS 1.3 context\n");
         return NULL;
     }
 
@@ -190,7 +190,7 @@ int wolfTlsConnect(WOLFSSL_CTX* ctx, WOLFSSL** ssl, const char* host,
     if (ret == 0) {
         *ssl = wolfSSL_new(ctx);
         if (*ssl == NULL) {
-            XLOG(WOLFKM_LOG_ERROR, "wolfSSL_new memory failure");
+            XLOG(WOLFKM_LOG_ERROR, "wolfSSL_new memory failure\n");
             return WOLFKM_BAD_MEMORY;
         }
 

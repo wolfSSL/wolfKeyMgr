@@ -111,7 +111,7 @@ void wolfKeyMgr_Log(enum log_level_t level, const char* fmt, ...)
     va_list vlist;
     char    timeStr[80];
     char    msgStr[1024];
-    time_t  current;
+    time_t  current = wolfGetCurrentTimeT();
     struct  tm local;
 
     if (level > logLevel)
@@ -122,7 +122,6 @@ void wolfKeyMgr_Log(enum log_level_t level, const char* fmt, ...)
 
     /* prefix timestamp */
     timeStr[0] = '\0';
-    current = time(NULL);
     if (localtime_r(&current, &local)) {
         /* make pretty */
         strftime(timeStr, sizeof(timeStr), "%b %d %T %Y", &local);
@@ -196,6 +195,14 @@ int wolfLoadFileBuffer(const char* fileName, byte** buffer, word32* sz)
     }
 
     return 0;
+}
+
+/* return time in seconds since Jan 1, 1970 (UTC / Unix Epoch) */
+time_t wolfGetCurrentTimeT(void)
+{
+    time_t current;
+    current = time(NULL);
+    return current;
 }
 
 /* return time in seconds with precision */

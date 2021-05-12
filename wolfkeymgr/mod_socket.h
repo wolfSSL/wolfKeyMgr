@@ -74,6 +74,7 @@ WOLFKM_API int  wolfSocketRead(WKM_SOCKET_T sockfd, byte* buffer, word32 length)
 WOLFKM_API int  wolfSockSelect(WKM_SOCKET_T sockfd, int timeoutSec, int rx);
 WOLFKM_API int  wolfSocketWrite(WKM_SOCKET_T sockfd, const byte* buffer, word32 length);
 WOLFKM_API void wolfSocketClose(WKM_SOCKET_T sockfd);
+WOLFKM_API int  wolfSocketGetError(WKM_SOCKET_T sockfd, int* so_error);
 WOLFKM_API int  wolfSocketLastError(int err);
 
 #ifdef __cplusplus

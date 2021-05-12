@@ -483,11 +483,11 @@ static int DoRead(struct bufferevent* bev, svcConn* conn)
                 ret = err;
 
             if (ret != 0)
-                XLOG(WOLFKM_LOG_ERROR, "wolfSSL_read err = %s",
+                XLOG(WOLFKM_LOG_ERROR, "wolfSSL_read err = %s\n",
                                     wolfSSL_ERR_reason_error_string(err));
         }
     } else {
-       XLOG(WOLFKM_LOG_ERROR, "DoRead() usingTLS but no SSL object");
+       XLOG(WOLFKM_LOG_ERROR, "DoRead() usingTLS but no SSL object\n");
        ret = -1;
     }
 
@@ -1234,13 +1234,13 @@ int wolfKeyMgr_DoSend(svcConn* conn, byte* resp, int respSz)
                 ret = 0; /* translate to 0 wouldblock */
             }
             else {
-                XLOG(WOLFKM_LOG_ERROR, "wolfSSL_write error %d: %s",
+                XLOG(WOLFKM_LOG_ERROR, "wolfSSL_write error %d: %s\n",
                                      err, wolfSSL_ERR_reason_error_string(err));
             }
         }
     }
     else {
-       XLOG(WOLFKM_LOG_ERROR, "DoSend() usingTLS but no SSL object");
+       XLOG(WOLFKM_LOG_ERROR, "DoSend() usingTLS but no SSL object\n");
        ret = -1;
     }
 

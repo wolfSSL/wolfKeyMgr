@@ -31,13 +31,6 @@ extern "C" {
 #include "wolfkeymgr/mod_socket.h"
 #include "wolfkeymgr/mod_tls.h"
 
-typedef struct EtsiClientCtx EtsiClientCtx;
-
-typedef enum EtsiClientType {
-    ETSI_CLIENT_UNKNOWN,
-    ETSI_CLIENT_GET,
-    ETSI_CLIENT_PUSH,
-} EtsiClientType;
 
 #ifndef ETSI_MAX_REQUEST_SZ
 #define ETSI_MAX_REQUEST_SZ  1024
@@ -46,30 +39,123 @@ typedef enum EtsiClientType {
 #define ETSI_MAX_RESPONSE_SZ 1024
 #endif
 
+/* opaque type for EtsiClientCtx (pointer reference only) */
+typedef struct EtsiClientCtx EtsiClientCtx;
+
+typedef enum EtsiClientType {
+    ETSI_CLIENT_UNKNOWN,
+    ETSI_CLIENT_GET,  /* ask for key if current one is expired */
+    ETSI_CLIENT_PUSH, /* remain connected and server will push new key */
+} EtsiClientType;
+
+typedef enum EtsiKeyType {
+    ETSI_KEY_TYPE_UNKNOWN = 0,
+    /* Named Groups: defined in clause 4.2.7 in IETF RFC 8446 */
+    ETSI_KEY_TYPE_SECP160K1 = 15,
+    ETSI_KEY_TYPE_SECP160R1 = 16,
+    ETSI_KEY_TYPE_SECP160R2 = 17,
+    ETSI_KEY_TYPE_SECP192K1 = 18,
+    ETSI_KEY_TYPE_SECP192R1 = 19,
+    ETSI_KEY_TYPE_SECP224K1 = 20,
+    ETSI_KEY_TYPE_SECP224R1 = 21,
+    ETSI_KEY_TYPE_SECP256K1 = 22,
+    ETSI_KEY_TYPE_SECP256R1 = 23,
+    ETSI_KEY_TYPE_SECP384R1 = 24,
+    ETSI_KEY_TYPE_SECP521R1 = 25,
+    ETSI_KEY_TYPE_BRAINPOOLP256R1 = 26,
+    ETSI_KEY_TYPE_BRAINPOOLP384R1 = 27,
+    ETSI_KEY_TYPE_BRAINPOOLP512R1 = 28,
+    ETSI_KEY_TYPE_X25519    = 29,
+    ETSI_KEY_TYPE_X448      = 30,
+    ETSI_KEY_TYPE_FFDHE_2048 = 256,
+    ETSI_KEY_TYPE_FFDHE_3072 = 257,
+    ETSI_KEY_TYPE_FFDHE_4096 = 258,
+    ETSI_KEY_TYPE_FFDHE_6144 = 259,
+    ETSI_KEY_TYPE_FFDHE_8192 = 260,
+} EtsiKeyType;
+
+typedef struct EtsiKey {
+    enum EtsiKeyType type;
+    char   response[ETSI_MAX_RESPONSE_SZ];
+    word32 responseSz;
+    time_t expires; /* from HTTP HTTP_HDR_EXPIRES */
+
+    /* flags */
+    unsigned char isDynamic:1; /* key is dynamically allocated */
+} EtsiKey;
+
+/* Key callback Function */
+/* if return code is not zero then socket will be closed */
+typedef int (*EtsiKeyCallbackFunc)(EtsiClientCtx* client, EtsiKey* key, void* cbCtx);
+
+/* ETSI Client API's */
+/* allocate new ETSI client context */
 WOLFKM_API EtsiClientCtx* wolfEtsiClientNew(void);
 
+/* Setup the TLS mutual authentication key/certificate for accessing the ETSI Key Manager */
 WOLFKM_API int wolfEtsiClientSetKey(EtsiClientCtx* client,
     const char* keyFile,  const char* keyPassword, const char* certFile,
     int fileType);
 
+/* Setup the trusted CA certificate to verify authentic ETSI Key Manager */
 WOLFKM_API int wolfEtsiClientAddCA(EtsiClientCtx* client,
     const char* caFile);
 
+/* Open TLS session to ETSI Key Manager */
 WOLFKM_API int wolfEtsiClientConnect(EtsiClientCtx* client, 
     const char* host, word16 port, int timeoutSec);
 
-WOLFKM_API int wolfEtsiClientGet(EtsiClientCtx* client, 
-    EtsiClientType type, const char* fingerprint, int timeoutSec,
-    byte* response, word32* responseSz);
+WOLFKM_API int wolfEtsiClientMakeRequest(EtsiClientType type, const char* fingerprint,
+    const char* groups, const char* contextstr, byte* request, word32* requestSz);
 
+/* Get will return current key for provided fingerprint */
+/* Fingerprint is a SHA256 hash of public key first 80 bits of digest in big- 
+    endian format as HEX string (10 characters max) */
+/* keyType can be DHE/ECDHE/X25519/X448 */
+WOLFKM_API int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key, 
+    EtsiKeyType keyType, const char* fingerprint, const char* contextStr,
+    int timeoutSec);
+
+/* this call will be blocking until socket failure or callback non-zero return */
+/* when server pushes new keys the callback will trigger with EtsiKey populated */
+WOLFKM_API int wolfEtsiClientPush(EtsiClientCtx* client, EtsiKeyType keyType,
+    const char* fingerprint, const char* contextStr,
+    EtsiKeyCallbackFunc cb, void* cbCtx);
+
+/* Retrieve key data for a fingerprint between timestamps 
+   time as: (Jan 1, 1970 UTC - UNIX Epoch - `date +%s`) */
+WOLFKM_API int wolfEtsiClientFind(EtsiClientCtx* client, EtsiKeyType keyType,
+    const char* fingerprint, const char* contextStr, time_t begin, time_t end,
+    EtsiKeyCallbackFunc cb, void* cbCtx);
+
+/* Disconnect from ETSI Key Manager */
 WOLFKM_API int wolfEtsiClientClose(EtsiClientCtx* client);
 
+/* Release ETSI client context resources */
 WOLFKM_API void wolfEtsiClientFree(EtsiClientCtx* client);
 
-WOLFKM_API int wolfEtsiLoadKey(ecc_key* key, byte* buffer, word32 length);
+/* ETSI Key API's */
+/* allocate ETSI key dynamically from heap */
+/* The EtsiKey can come from stack, but must be memset to zero */
+WOLFKM_API EtsiKey* wolfEtsiKeyNew(void);
+/* Returns the wolf PK type (enum wc_PkType) */
+WOLFKM_API int wolfEtsiKeyGetPkType(EtsiKey* key);
+/* Load key to WOLFSSL_CTX directly */
+WOLFKM_API int wolfEtsiKeyLoadCTX(EtsiKey* key, WOLFSSL_CTX* ctx);
+/* Load key to WOLFSSL session directly */
+WOLFKM_API int wolfEtsiKeyLoadSSL(EtsiKey* key, WOLFSSL* ssl);
+/* Get pointer to PKCS8 key response */
+WOLFKM_API int wolfEtsiKeyGet(EtsiKey* key, byte** response, word32* responseSz);
+/* print ETSI key data - for debugging / testing */
+WOLFKM_API int  wolfEtsiKeyPrint(EtsiKey* key);
+/* release ETSI key resources */
+WOLFKM_API void wolfEtsiKeyFree(EtsiKey* key);
+
+WOLFKM_API const char* wolfEtsiKeyNamedGroupStr(EtsiKey* key);
+
 
 /* these are required if using multiple threads sharing the wolfSSL library for init mutex protection */
-WOLFKM_API int  wolfEtsiClientInit(void);
+WOLFKM_API int wolfEtsiClientInit(void);
 WOLFKM_API void wolfEtsiClientCleanup(void);
 
 #ifdef __cplusplus

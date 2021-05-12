@@ -27,7 +27,7 @@
 extern "C" {
 #endif
 
-#define LIBWOLFSSL_VERSION_STRING "0.5"
+#define LIBWOLFSSL_VERSION_STRING "0.6"
 #define LIBWOLFSSL_VERSION_HEX @HEX_VERSION@
 
 #ifdef __cplusplus
