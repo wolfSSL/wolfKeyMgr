@@ -559,7 +559,15 @@ static void ThreadEventProcess(int fd, short which, void* arg)
         return;
     }
     else if (memcmp(buffer, &kNotify, sizeof(kNotify)) == 0) {
-        svcConn* conn = me->activeSvcConns.head;
+        svcConn* conn = me->activeSvcConns.head, conn_lcl;
+        if (conn == NULL) {
+            /* Setup an empty connection for notify only */
+            memset(&conn_lcl, 0, sizeof(conn_lcl));
+            conn = &conn_lcl;
+            conn->svc          = me->svc;
+            conn->svcThreadCtx = me->svcThreadCtx;
+            conn->me           = me;
+        }
         while (conn) {
             if (conn->svc->notifyCb) {
                 conn->svc->notifyCb(conn);

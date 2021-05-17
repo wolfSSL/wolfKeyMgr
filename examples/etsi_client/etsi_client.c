@@ -44,6 +44,7 @@ typedef struct WorkThreadInfo {
     const char* keyPass;
     const char* clientCertFile;
     const char* caFile;
+    EtsiKey key;
     WOLFSSL_CTX* ctx; /* test ctx loading static ephemeral key */
 } WorkThreadInfo;
 
@@ -84,12 +85,20 @@ static int DoKeyRequest(EtsiClientCtx* client, WorkThreadInfo* info)
     /* push: will wait for server to push new keys */
     /* get:  will ask server for key and return */
     if (info->useGet) {
-        EtsiKey key;
-        memset(&key, 0, sizeof(key));
-
-        ret = wolfEtsiClientGet(client, &key, keyType, NULL, NULL, info->timeoutSec);
-        if (ret == 0) {
-            keyCb(client, &key, info);
+        ret = wolfEtsiClientGet(client, &info->key, keyType, NULL, NULL,
+            info->timeoutSec);
+        /* positive return means new key returned */
+        /* zero means, same key is used */
+        /* negative means error */
+        if (ret > 0) {
+            /* use same "push" callback to test key use / print */
+            keyCb(client, &info->key, info);
+            ret = 0;
+        }
+        else if (ret == 0) {
+            XLOG(WOLFKM_LOG_INFO, "ETSI Key Cached (valid for %lu sec)\n",
+                info->key.expires - wolfGetCurrentTimeT());
+            sleep(1); /* wait 1 second */
         }
     }
     else {
@@ -264,7 +273,6 @@ int main(int argc, char** argv)
     wolfEtsiClientInit();
 
     if (poolSize == 0) {
-        info.requests = 1; /* only 1 request for this */
         DoRequests(&info);
     }
     else {

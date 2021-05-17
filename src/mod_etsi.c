@@ -168,15 +168,18 @@ int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
     int    pos, i;
     HttpRsp rsp;
     const char* group;
+    time_t now;
 
     if (client == NULL || key == NULL) {
         return WOLFKM_BAD_ARGS;
     }
 
     /* Has current key expired? */
+    now = wolfGetCurrentTimeT();
     if (key->type == keyType && key->responseSz > 0 && 
-        key->expires > 0 && key->expires < wolfGetCurrentTimeT()) {
+        key->expires > 0 && key->expires >= now) {
         /* key is still valid, use existing */
+        /* return zero, indicating no key change */
         return 0;
     }
 
@@ -209,6 +212,7 @@ int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
     /* get key response */
     /* TODO: handle HTTP chunked content type */
     /* TODO: handle multiple packets */
+    /* TODO: Integrate HTTP processing with read to handle larger payloads */
     key->responseSz = sizeof(key->response);
     do {
         ret = wolfTlsRead(client->ssl, (byte*)key->response, key->responseSz,
@@ -237,15 +241,24 @@ int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
                     memset(&tm, 0, sizeof(tm));
                     /* Convert string to time_t */
                     /* HTTP expires example: "Wed, 21 Oct 2015 07:28:00 GMT" */
-                    if (strptime(rsp.headers[i].string, 
-                        "%a, %d %b %Y %H:%M:%s %Z", &tm) != NULL) {
+                    if (strptime(rsp.headers[i].string, HTTP_DATE_FMT,
+                                                                 &tm) != NULL) {
                         key->expires = mktime(&tm);
+                        /* sanity check time against current time */
+                        /* if this is past current here then it has already 
+                            expired or is invalid */
+                        if (key->expires < now) {
+                            XLOG(WOLFKM_LOG_WARN,
+                                "Key expires time invalid %lu < %lu\n",
+                                key->expires, now);
+                            key->expires = 0;
+                        }
                     }
                     break;
                 }
             }
 
-            /* move payload (body) to response */
+            /* move payload (body) to response (same buffer) */
             memcpy(key->response, rsp.body, rsp.bodySz);
             key->responseSz = rsp.bodySz;
         }
@@ -256,7 +269,9 @@ int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
 
     if (ret == 0) {
         /* asymmetric key package response */
-        XLOG(WOLFKM_LOG_INFO, "Got ETSI response (%d bytes)\n", key->responseSz);
+        XLOG(WOLFKM_LOG_INFO, "Got ETSI response (%d bytes)\n",
+            key->responseSz);
+        ret = key->responseSz; /* return key size */
     }
 
     return ret;

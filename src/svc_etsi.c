@@ -35,7 +35,7 @@ typedef struct etsiSvcCtx {
     pthread_mutex_t lock; /* queue lock */
     pthread_t       thread; /* key gen worker */
 } etsiSvcCtx;
-static etsiSvcCtx svcCtx;
+static etsiSvcCtx gSvcCtx;
 
 /* the top level service */
 static svcInfo etsiService = {
@@ -57,14 +57,14 @@ static svcInfo etsiService = {
     .caBuffer = NULL,
     .caBufferSz = 0,
 
-    .svcCtx = &svcCtx,
+    .svcCtx = &gSvcCtx,
 };
 
 /* worker thread objects */
 typedef struct etsiSvcThread {
-    word32  index;
-    byte*   httpRspBuf;
-    word32  httpRspSz;
+    word32 index;
+    byte*  httpRspBuf;
+    word32 httpRspSz;
 } etsiSvcThread;
 
 typedef struct etsiSvcConn {
@@ -109,16 +109,26 @@ static int SetupKeyPackage(etsiSvcCtx* svcCtx, etsiSvcThread* etsiThread)
     int ret = 0;
     byte rsp[ETSI_MAX_RESPONSE_SZ], keyBuf[ECC_BUFSIZE];
     word32 rspSz = (word32)sizeof(rsp), keyBufSz = (word32)sizeof(keyBuf);
-    HttpHeader headers[2];
+    char expiresStr[100];
+    HttpHeader headers[3];
     headers[0].type = HTTP_HDR_CONTENT_TYPE;
     headers[0].string = "application/pkcs8";
     headers[1].type = HTTP_HDR_CONNECTION;
     headers[1].string = "Keep-Alive";
-    /* TODO: Add key expiration using HTTP_HDR_EXPIRES */
-    /* Example "Expires: Wed, 21 Oct 2015 07:28:00 GMT" */
+    headers[2].type = HTTP_HDR_EXPIRES;
+    headers[2].string = expiresStr;
+    memset(expiresStr, 0, sizeof(expiresStr));
 
     pthread_mutex_lock(&svcCtx->lock);
+    XLOG(WOLFKM_LOG_DEBUG, "Synchronizing key to worker thread\n"); 
     if (etsiThread->index != svcCtx->index) {
+        /* Format Expires Time */
+        time_t t = wolfGetCurrentTimeT();
+        struct tm tm;
+        t += svcCtx->renewSec; /* offset by key renewal period */
+        localtime_r(&t, &tm);
+        strftime(expiresStr, sizeof(expiresStr), HTTP_DATE_FMT, &tm);
+
         /* Export as DER IETF RFC 5915 */
         ret = wc_EccKeyToDer(&svcCtx->key, keyBuf, keyBufSz);
         if (ret < 0) {
@@ -259,14 +269,13 @@ void wolfEtsiSvc_ConnClose(svcConn* conn)
 
 int wolfEtsiSvc_DoNotify(svcConn* conn)
 {
-    int ret = 0;
+    int ret;
     svcInfo* svc;
     etsiSvcCtx* svcCtx;
     etsiSvcThread* etsiThread;
     etsiSvcConn* etsiConn;
 
-    if (conn == NULL || conn->stream == NULL || conn->svc == NULL || 
-            conn->svcThreadCtx == NULL || conn->svcConnCtx == NULL) {
+    if (conn == NULL || conn->svc == NULL || conn->svcThreadCtx == NULL) {
         XLOG(WOLFKM_LOG_ERROR, "Bad ETSI notify pointers\n");
         return WOLFKM_BAD_ARGS;
     }
@@ -276,13 +285,14 @@ int wolfEtsiSvc_DoNotify(svcConn* conn)
     etsiThread = (etsiSvcThread*)conn->svcThreadCtx;
     etsiConn = (etsiSvcConn*)conn->svcConnCtx;
 
-    if (etsiConn->req.type == HTTP_METHOD_PUT) {
-        /* updated key */
-        ret = SetupKeyPackage(svcCtx, etsiThread);
-        if (ret == 0) {
-            /* send updated key */
-            ret = wolfEtsiSvc_DoResponse(conn);
-        }
+    /* update key */
+    ret = SetupKeyPackage(svcCtx, etsiThread);
+
+    /* push key to active push threads */
+    if (ret == 0 && etsiConn != NULL && 
+            etsiConn->req.type == HTTP_METHOD_PUT) {
+        /* send updated key */
+        ret = wolfEtsiSvc_DoResponse(conn);
     }
 
     return ret;

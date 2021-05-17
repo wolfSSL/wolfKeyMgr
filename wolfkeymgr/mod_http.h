@@ -33,6 +33,10 @@ extern "C" {
 #define HTTP_HDR_MAX_ITEMS 10
 #endif
 
+#ifndef HTTP_DATE_FMT
+#define HTTP_DATE_FMT "%a, %d %b %Y %H:%M:%S %Z"
+#endif
+
 /* HTTP Types */
 typedef enum HttpMethodType {
     HTTP_METHOD_UNKNOWN,

@@ -112,6 +112,10 @@ WOLFKM_API int wolfEtsiClientMakeRequest(EtsiClientType type, const char* finger
 /* Fingerprint is a SHA256 hash of public key first 80 bits of digest in big- 
     endian format as HEX string (10 characters max) */
 /* keyType can be DHE/ECDHE/X25519/X448 */
+/* return:
+     - zero response means existing key is used, 
+     - negative is error
+     - positive means new key retrieved */
 WOLFKM_API int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key, 
     EtsiKeyType keyType, const char* fingerprint, const char* contextStr,
     int timeoutSec);

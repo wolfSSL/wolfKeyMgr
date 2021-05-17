@@ -29,8 +29,7 @@ extern "C" {
 /* for client tests only */
 #define WOLFKM_DEFAULT_HOST         "localhost"
 #define WOLFKM_DEFAULT_ETSISVC_PORT "8119"
-#define WOLFKM_DEFAULT_REQUESTS     100   /* per thread */
-#define WOLFKM_ERROR_MODE_MAX       5       /* error mode type for forcing errors */
+#define WOLFKM_DEFAULT_REQUESTS     1       /* per thread */
 
 /* example certificate and key for mutual authentication to key manager */
 /* see ./certs/test-cert.sh for generation and signing */
