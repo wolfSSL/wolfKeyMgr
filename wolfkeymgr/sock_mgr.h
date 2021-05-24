@@ -56,18 +56,18 @@ extern "C" {
 /* program types */
 
 /* forward declarations */
-typedef struct connItem connItem;
-typedef struct svcConn svcConn;
-typedef struct svcInfo svcInfo;
-typedef struct eventThread eventThread;
+typedef struct ConnItem ConnItem;
+typedef struct SvcConn SvcConn;
+typedef struct SvcInfo SvcInfo;
+typedef struct EventThread EventThread;
 
 /* service connection */
-typedef int  (*svcRequestFunc)(svcConn*);
-typedef int  (*svcTimeoutFunc)(svcConn*);
-typedef int  (*svcNotifyFunc)(svcConn*);
-typedef void (*svcCloseFunc)(svcConn*);
-typedef int  (*initThreadFunc)(svcInfo*, void**);
-typedef void (*freeThreadFunc)(svcInfo*, void*);
+typedef int  (*svcRequestFunc)(SvcConn*);
+typedef int  (*svcTimeoutFunc)(SvcConn*);
+typedef int  (*svcNotifyFunc)(SvcConn*);
+typedef void (*svcCloseFunc)(SvcConn*);
+typedef int  (*initThreadFunc)(SvcInfo*, void**);
+typedef void (*freeThreadFunc)(SvcInfo*, void*);
 
 /* overall statistics */
 typedef struct {
@@ -79,9 +79,9 @@ typedef struct {
     uint32_t        maxConcurrent;          /* max concurrent connections */
     time_t          began;                  /* time we started */
     double          responseTime;           /* total response time */
-} stats;
+} SvcStats;
 
-struct svcInfo {
+struct SvcInfo {
     const char* desc;
 
     /* service callbacks */
@@ -93,7 +93,6 @@ struct svcInfo {
     svcCloseFunc    closeCb;
     
     /* TLS certificate / key - As DER/ASN.1*/
-    int             noTLS;
     byte*           keyBuffer;
     byte*           certBuffer;
     byte*           caBuffer;
@@ -110,11 +109,11 @@ struct svcInfo {
     int             initCount;      /* number of worker threads done setting up */
     pthread_mutex_t initLock;       /* for initCount */
     pthread_cond_t  initCond;       /* for initCount */
-    eventThread*    threads;        /* worker thread pool */
+    EventThread*    threads;        /* worker thread pool */
     int             threadPoolSize; /* our reference here */
-    connItem*       freeConnItems;  /* free connection item list */
+    ConnItem*       freeConnItems;  /* free connection item list */
     pthread_mutex_t itemLock;       /* for freeItems */
-    stats           globalStats;    /* global (all threads) total stats */
+    SvcStats        globalStats;    /* global (all threads) total stats */
     WOLFSSL_CTX*    sslCtx;         /* ssl context factory */
 };
 
@@ -122,56 +121,56 @@ struct svcInfo {
 typedef struct {
     struct event_base* base;        /* base event that setup signal handler */
     struct event*      ev;          /* actual signal event */
-    svcInfo*           svc[MAX_SERVICES];
-} signalArg;
+    SvcInfo*           svc[MAX_SERVICES];
+} SignalArg;
 
 /* each connection item */
-struct connItem {
-    connItem* next;                        /* next item on freeList */
+struct ConnItem {
+    ConnItem* next;                        /* next item on freeList */
     int       fd;                          /* file descriptor */
     char      peerAddr[MAX_SOCKADDR_SZ];   /* copy of peer sockaddr */
-    svcInfo*  svc;
+    SvcInfo*  svc;
 };
 
 /* queue for connections, shared between main thread and worker threads */
 typedef struct {
-    connItem*       head;     /* head of queue */
-    connItem*       tail;     /* tail of queue */
+    ConnItem*       head;     /* head of queue */
+    ConnItem*       tail;     /* tail of queue */
     pthread_mutex_t lock;     /* queue lock */
-} connQueue;
+} ConnQueue;
 
-struct svcConn {
+struct SvcConn {
     struct bufferevent* stream;       /* buffered stream */
     WOLFSSL*            ssl;          /* ssl object */
     word32              requestSz;    /* bytes in request buffer */
     byte                request[MAX_REQUEST_SIZE]; /* full input request */
-    svcInfo*            svc;
+    SvcInfo*            svc;
     void*               svcThreadCtx; /* context for the thread */
     void*               svcConnCtx;   /* context for the connection specific to the service */
     double              start;        /* response processing time start */
-    eventThread*        me;
-    svcConn*            next;
-    svcConn*            prev;
+    EventThread*        me;
+    SvcConn*            next;
+    SvcConn*            prev;
 };
 
-typedef struct svcConnList {
-    svcConn* head;
+typedef struct SvcConnList {
+    SvcConn* head;
     /* no locking needed, this list is only accedded by the working thread */
-} svcConnList;
+} SvcConnList;
 
 
 /* each thread in the pool has some unique data */
-struct eventThread {
+struct EventThread {
     pthread_t          tid;            /* this thread's ID */
     struct event_base* threadBase;     /* base handle for this thread */
     struct event*      notify;         /* listen event for notify pipe */
-    connQueue*         connections;    /* queue for new connections */
+    ConnQueue*         connections;    /* queue for new connections */
     int                notifyRecv;     /* receiving end of notification pipe */
     int                notifySend;     /* sending end of notification pipe */
-    svcInfo*           svc;
+    SvcInfo*           svc;
     void*              svcThreadCtx;
-    svcConnList        freeSvcConns;   /* free connection list */
-    svcConnList        activeSvcConns; /* active connection list */
+    SvcConnList        freeSvcConns;   /* free connection list */
+    SvcConnList        activeSvcConns; /* active connection list */
 };
 
 
@@ -180,20 +179,20 @@ WOLFKM_LOCAL int  wolfKeyMgr_MakeDaemon(int chDir);
 WOLFKM_LOCAL void wolfKeyMgr_SetMaxFiles(int max);
 WOLFKM_LOCAL void wolfKeyMgr_SetCore(void);
 WOLFKM_LOCAL void wolfKeyMgr_SignalCb(evutil_socket_t fd, short event, void* arg);
-WOLFKM_LOCAL void wolfKeyMgr_ShowStats(svcInfo* svc);
+WOLFKM_LOCAL void wolfKeyMgr_ShowStats(SvcInfo* svc);
 WOLFKM_LOCAL FILE* wolfKeyMgr_GetPidFile(const char* pidFile, pid_t pid);
-WOLFKM_LOCAL void wolfKeyMgr_SetTimeout(svcInfo* svc, word32 timeoutSec);
+WOLFKM_LOCAL void wolfKeyMgr_SetTimeout(SvcInfo* svc, word32 timeoutSec);
 
-WOLFKM_LOCAL int wolfKeyMgr_AddListeners(svcInfo* svc, int af_v, char* listenPort, struct event_base* mainBase);
-WOLFKM_LOCAL int wolfKeyMgr_ServiceInit(svcInfo* svc, int numThreads);
-WOLFKM_LOCAL void wolfKeyMgr_ServiceCleanup(svcInfo* svc);
+WOLFKM_LOCAL int wolfKeyMgr_AddListeners(SvcInfo* svc, int af_v, char* listenPort, struct event_base* mainBase);
+WOLFKM_LOCAL int wolfKeyMgr_ServiceInit(SvcInfo* svc, int numThreads);
+WOLFKM_LOCAL void wolfKeyMgr_ServiceCleanup(SvcInfo* svc);
 WOLFKM_LOCAL void wolfKeyMgr_FreeListeners(void);
 
-WOLFKM_LOCAL int wolfKeyMgr_DoSend(svcConn* conn, byte* resp, int respSz);
-WOLFKM_LOCAL int wolfKeyMgr_NotifyAllClients(svcInfo* svc);
-WOLFKM_LOCAL int wolfKeyMgr_LoadKeyFile(svcInfo* svc, const char* fileName, int fileType, const char* password);
-WOLFKM_LOCAL int wolfKeyMgr_LoadCertFile(svcInfo* svc, const char* fileName, int fileType);
-WOLFKM_LOCAL int wolfKeyMgr_LoadCAFile(svcInfo* svc, const char* fileName, int fileType);
+WOLFKM_LOCAL int wolfKeyMgr_DoSend(SvcConn* conn, byte* resp, int respSz);
+WOLFKM_LOCAL int wolfKeyMgr_NotifyAllClients(SvcInfo* svc);
+WOLFKM_LOCAL int wolfKeyMgr_LoadKeyFile(SvcInfo* svc, const char* fileName, int fileType, const char* password);
+WOLFKM_LOCAL int wolfKeyMgr_LoadCertFile(SvcInfo* svc, const char* fileName, int fileType);
+WOLFKM_LOCAL int wolfKeyMgr_LoadCAFile(SvcInfo* svc, const char* fileName, int fileType);
 
 
 #ifdef __cplusplus

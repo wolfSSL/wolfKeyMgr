@@ -130,7 +130,8 @@ int wolfEtsiClientMakeRequest(EtsiClientType type, const char* fingerprint,
     const char* groups, const char* contextstr, byte* request, word32* requestSz)
 {
     int ret;
-    char uri[256];
+    char uri[HTTP_MAX_URI*3]; /* fingerprint, groups, contextStr */
+    size_t uriLen;
     HttpHeader headers[1];
     HttpMethodType httpType;
     headers[0].type = HTTP_HDR_ACCEPT;
@@ -145,11 +146,36 @@ int wolfEtsiClientMakeRequest(EtsiClientType type, const char* fingerprint,
     else {
         /* use GET with either fingerprint (with optional groups/context) */
         httpType = HTTP_METHOD_GET;
-        snprintf(uri, sizeof(uri), 
-            "/.well-known/enterprise-transport-security/keys?fingerprints=%s%s%s%s%s",
-            fingerprint == NULL ? "" : fingerprint,
-            groups == NULL ? "" : "&groups=", groups == NULL ? "" : groups,
-            contextstr == NULL ? "" : "&contextstr=", contextstr == NULL ? "" : contextstr);
+        strncpy(uri,
+            "/.well-known/enterprise-transport-security/keys?fingerprints=",
+            sizeof(uri));
+        uriLen = strlen(uri);
+        if (fingerprint != NULL) {
+            ret = wolfHttpUriEncode(fingerprint, strlen(fingerprint),
+                uri+uriLen, sizeof(uri)-uriLen);
+            if (ret < 0)
+                return WOLFKM_BAD_ARGS;
+            uriLen += ret;
+        }
+        if (groups != NULL) {
+            strncpy(uri+uriLen, "&groups=", sizeof(uri)-uriLen);
+            uriLen = strlen(uri);
+            ret = wolfHttpUriEncode(groups, strlen(groups),
+                uri+uriLen, sizeof(uri)-uriLen);
+            if (ret < 0)
+                return WOLFKM_BAD_ARGS;
+            uriLen += ret;
+        }
+        if (contextstr != NULL) {
+            strncpy(uri+uriLen, "&contextstr=", sizeof(uri)-uriLen);
+            uriLen = strlen(uri);
+            ret = wolfHttpUriEncode(contextstr, strlen(contextstr),
+                uri+uriLen, sizeof(uri)-uriLen);
+            if (ret < 0)
+                return WOLFKM_BAD_ARGS;
+            uriLen += ret;
+        }
+        uri[uriLen] = '\0'; /* null term */
     }
     ret = wolfHttpClient_EncodeRequest(httpType, uri, request,
             requestSz, headers, sizeof(headers)/sizeof(HttpHeader));
@@ -353,6 +379,57 @@ int wolfEtsiKeyGetPkType(EtsiKey* key)
     return WC_PK_TYPE_NONE;
 }
 
+const char* wolfEtsiKeyGetTypeStr(EtsiKeyType type)
+{
+    switch (type) {
+        case ETSI_KEY_TYPE_SECP160K1:
+            return "SECP160K1";
+        case ETSI_KEY_TYPE_SECP160R1:
+            return "SECP160R1";
+        case ETSI_KEY_TYPE_SECP160R2:
+            return "SECP160R2";
+        case ETSI_KEY_TYPE_SECP192K1:
+            return "SECP192K1";
+        case ETSI_KEY_TYPE_SECP192R1:
+            return "SECP192R1";
+        case ETSI_KEY_TYPE_SECP224K1:
+            return "SECP224K1";
+        case ETSI_KEY_TYPE_SECP224R1:
+            return "SECP224R1";
+        case ETSI_KEY_TYPE_SECP256K1:
+            return "SECP256K1";
+        case ETSI_KEY_TYPE_SECP256R1:
+            return "SECP256R1";
+        case ETSI_KEY_TYPE_SECP384R1:
+            return "SECP384R1";
+        case ETSI_KEY_TYPE_SECP521R1:
+            return "SECP521R1";
+        case ETSI_KEY_TYPE_BRAINPOOLP256R1:
+            return "BRAINPOOLP256R1";
+        case ETSI_KEY_TYPE_BRAINPOOLP384R1:
+            return "BRAINPOOLP384R1";
+        case ETSI_KEY_TYPE_BRAINPOOLP512R1:
+            return "BRAINPOOLP512R1";
+        case ETSI_KEY_TYPE_X25519:
+            return "X25519";
+        case ETSI_KEY_TYPE_X448:
+            return "X448";
+        case ETSI_KEY_TYPE_FFDHE_2048:
+            return "FFDHE_2048";
+        case ETSI_KEY_TYPE_FFDHE_3072:
+            return "FFDHE_3072";
+        case ETSI_KEY_TYPE_FFDHE_4096:
+            return "FFDHE_4096";
+        case ETSI_KEY_TYPE_FFDHE_6144:
+            return "FFDHE_6144";
+        case ETSI_KEY_TYPE_FFDHE_8192:
+            return "FFDHE_8192";
+        default:
+            break;
+    }
+    return NULL;
+}
+
 int wolfEtsiKeyLoadCTX(EtsiKey* key, WOLFSSL_CTX* ctx)
 {
     int keyAlgo;
@@ -406,7 +483,8 @@ int wolfEtsiKeyPrint(EtsiKey* key)
             ret = wc_EccPrivateKeyDecode((byte*)key->response, &idx, &ecKey,
                 key->responseSz);
             if (ret == 0) {
-                byte pubX[32*2+1], pubY[32*2+1];
+                byte pubX[MAX_ECC_BYTES*2+1];
+                byte pubY[MAX_ECC_BYTES*2+1];
                 word32 pubXLen = sizeof(pubX), pubYLen = sizeof(pubY);
                 ret = wc_ecc_export_ex(&ecKey,
                     pubX, &pubXLen,
@@ -423,9 +501,22 @@ int wolfEtsiKeyPrint(EtsiKey* key)
 #endif
 #ifndef NO_DH
     if (keyAlgo == WC_PK_TYPE_DH) {
-        /* TODO: add example for loading DHE key and print */
-        //DhKey dh;
-        XLOG(WOLFKM_LOG_INFO, "DH Pub: TODO\n");
+        /* example for loading DHE key */
+        DhKey dhKey;
+        ret = wc_InitDhKey(&dhKey);
+        if (ret == 0) {
+            word32 idx = 0;
+            ret = wc_DhKeyDecode((byte*)key->response, &idx, &dhKey, key->responseSz);
+            if (ret == 0) {
+                byte pubKey[MAX_DH_PUB_SZ];
+                word32 pubKeyLen = sizeof(pubKey);
+                ret = wc_DhExportKeyPair(&dhKey, NULL, NULL, pubKey, &pubKeyLen);
+                if (ret == 0) {
+                    XLOG(WOLFKM_LOG_INFO, "DH Pub: %d\n", pubKeyLen);
+                }
+            }
+            wc_FreeDhKey(&dhKey);
+        }
     }
 #endif
 #ifdef HAVE_CURVE25519

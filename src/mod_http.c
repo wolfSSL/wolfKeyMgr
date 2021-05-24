@@ -433,21 +433,26 @@ void wolfHttpResponsePrint(HttpRsp* rsp)
 }
 
 
-char* wolfHttpUriEncode(const byte *s, char *enc)
+int wolfHttpUriEncode(const char *s, size_t sSz, char *enc, size_t encSz)
 {
-    for (; *s; s++){
+    int idx = 0;
+    for (; idx < sSz && *s; s++){
+        if (idx + 3 > encSz)
+            return -1;
         if (*s == '*' || *s == '-' || *s == '.' || *s == '_') {
             char a = (char)(*s >> 4), b = (char)(*s & 0xff);
-            *enc++ = '%';
-            *enc++ = (a < 10) ? '0' + a : 'A' + a - 10;
-            *enc++ = (b < 10) ? '0' + b : 'A' + b - 10;
+            enc[idx++] = '%';
+            enc[idx++] = (a < 10) ? '0' + a : 'A' + a - 10;
+            enc[idx++] = (b < 10) ? '0' + b : 'A' + b - 10;
         }
-        else if (*s == ' ')
-            *enc++ = '+';
-        else
-            *enc++ = *s;
+        else if (*s == ' ') {
+            enc[idx++] = '+';
+        }
+        else {
+            enc[idx++] = *s;
+        }
     }
-    return enc;
+    return idx;
 }
 
 static int hex_to_char(char a, byte* out)
@@ -464,24 +469,27 @@ static int hex_to_char(char a, byte* out)
     return 1;
 }
 
-byte* wolfHttpUriDecode(const char *s, byte *dec)
+int wolfHttpUriDecode(const char *s, size_t sSz, char *dec, size_t decSz)
 {
+    int idx = 0;
     byte a, b;
-    for (; *s; s++){
-        if (*s == '%' && 
+    for (; idx < sSz && *s; s++){
+        if (idx + 1 > decSz)
+            return -1;
+        if (*s == '%' &&
                 hex_to_char((char)s[1], &a) && 
                 hex_to_char((char)s[2], &b)) {
-            *dec++ = (a << 4 | b);
+            dec[idx++] = (a << 4 | b);
             s+=2;
         }
         else if (*s == '+') {
-            *dec++ = ' ';
+            dec[idx++] = ' ';
         }
         else {
-            *dec++ = *s;
+            dec[idx++] = *s;
         }
     }
-    return dec;
+    return idx;
 }
 
 int wolfHttpUrlDecode(HttpUrl* url, char* s)
@@ -518,4 +526,29 @@ int wolfHttpUrlDecode(HttpUrl* url, char* s)
         *dec = '\0';
     }
     return 0;
+}
+
+/* item should include equal sign. Example: "fingerprint=" */
+int wolfHttpUriGetItem(const char* uri, const char* itemName, char* item,
+    size_t itemSz)
+{
+    int ret = -1; /* not found */
+    const char *begin, *end;
+    size_t len = 0;
+    /* find item= */
+    begin = strstr(uri, itemName);
+    if (begin) {
+        begin += strlen(itemName);
+
+        /* find next & or null term */
+        end = strstr(begin, "&");
+        if (end != NULL)
+            len = (size_t)end - (size_t)begin;
+        else
+            len = strlen(begin);
+
+        /* perform URI decode */
+        ret = wolfHttpUriDecode(begin, len, item, itemSz); 
+    }
+    return ret;
 }

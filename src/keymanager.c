@@ -48,7 +48,7 @@ static void Usage(void)
 }
 
 static int wolfKeyMgr_AddSigHandler(struct event_base* mainBase,
-    signalArg* sigArg, int sig)
+    SignalArg* sigArg, int sig)
 {
     struct event* signalEvent = event_new(mainBase, sig,
         (EV_SIGNAL | EV_PERSIST), wolfKeyMgr_SignalCb, sigArg);
@@ -70,7 +70,7 @@ int main(int argc, char** argv)
     char*  pidName    = WOLFKM_DEFAULT_PID;
     struct event_base*      mainBase = NULL;    /* main thread's base  */
     FILE*                   pidF = 0;
-    svcInfo* etsiSvc = NULL;
+    SvcInfo* etsiSvc = NULL;
     int sec;
     word32 timeoutSec  = WOLFKM_DEFAULT_TIMEOUT, renewSec = WOLFKM_KEY_RENEW_TIMEOUT;
     int disableMutualAuth = 0; /* on by default */
@@ -78,7 +78,7 @@ int main(int argc, char** argv)
     const char* serverKeyPass = WOLFKM_ETSISVC_KEY_PASSWORD;
     const char* serverCert = WOLFKM_ETSISVC_CERT;
     const char* caCert = WOLFKM_ETSISVC_CA;
-    signalArg sigArgInt, sigArgTerm;
+    SignalArg sigArgInt, sigArgTerm;
 
     /* argument processing */
     while ((ch = getopt(argc, argv, "?bis:t:o:f:l:dk:w:c:A:r:")) != -1) {

@@ -37,6 +37,10 @@ extern "C" {
 #define HTTP_DATE_FMT "%a, %d %b %Y %H:%M:%S %Z"
 #endif
 
+#ifndef HTTP_MAX_URI
+#define HTTP_MAX_URI 128
+#endif
+
 /* HTTP Types */
 typedef enum HttpMethodType {
     HTTP_METHOD_UNKNOWN,
@@ -156,11 +160,12 @@ WOLFKM_API int wolfHttpClient_EncodeRequest(HttpMethodType type, const char* uri
 WOLFKM_API void wolfHttpRequestPrint(HttpReq* req);
 WOLFKM_API void wolfHttpResponsePrint(HttpRsp* rsp);
 
-WOLFKM_API char* wolfHttpUriEncode(const byte *s, char *enc);
-WOLFKM_API byte* wolfHttpUriDecode(const char *s, byte *dec);
-
+WOLFKM_API int wolfHttpUriEncode(const char *s, size_t sSz, char *enc, size_t encSz);
+WOLFKM_API int wolfHttpUriDecode(const char *s, size_t sSz, char *dec, size_t decSz);
 
 WOLFKM_API int wolfHttpUrlDecode(HttpUrl* url, char* s);
+
+WOLFKM_API int wolfHttpUriGetItem(const char* uri, const char* itemName, char* item, size_t itemSz);
 
 #ifdef __cplusplus
 }

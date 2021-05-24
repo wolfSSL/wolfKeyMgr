@@ -45,6 +45,7 @@ typedef struct WorkThreadInfo {
     const char* clientCertFile;
     const char* caFile;
     EtsiKey key;
+    EtsiKeyType keyType;
     WOLFSSL_CTX* ctx; /* test ctx loading static ephemeral key */
 } WorkThreadInfo;
 
@@ -61,11 +62,12 @@ static int keyCb(EtsiClientCtx* client, EtsiKey* key, void* userCtx)
 {
     int ret = 0;
     WorkThreadInfo* info = (WorkThreadInfo*)userCtx;
+    int keyAlgo = wolfEtsiKeyGetPkType(key);
 
     /* test use-case setting static ephemeral key */
     if (info->ctx) {
         ret = wolfSSL_CTX_set_ephemeral_key(info->ctx,
-            WC_PK_TYPE_ECDH, key->response, key->responseSz,
+            keyAlgo, key->response, key->responseSz,
             WOLFSSL_FILETYPE_ASN1);
     }
     wolfEtsiKeyPrint(key);
@@ -80,12 +82,11 @@ static int keyCb(EtsiClientCtx* client, EtsiKey* key, void* userCtx)
 static int DoKeyRequest(EtsiClientCtx* client, WorkThreadInfo* info)
 {
     int ret;
-    EtsiKeyType keyType = ETSI_KEY_TYPE_SECP256R1;
 
     /* push: will wait for server to push new keys */
     /* get:  will ask server for key and return */
     if (info->useGet) {
-        ret = wolfEtsiClientGet(client, &info->key, keyType, NULL, NULL,
+        ret = wolfEtsiClientGet(client, &info->key, info->keyType, NULL, NULL,
             info->timeoutSec);
         /* positive return means new key returned */
         /* zero means, same key is used */
@@ -103,7 +104,7 @@ static int DoKeyRequest(EtsiClientCtx* client, WorkThreadInfo* info)
     }
     else {
         /* blocking call and new keys from server will issue callback */
-        ret = wolfEtsiClientPush(client, keyType, NULL, NULL, keyCb, info);
+        ret = wolfEtsiClientPush(client, info->keyType, NULL, NULL, keyCb, info);
     }
 
     if (ret != 0) {
@@ -177,6 +178,7 @@ static void Usage(void)
     printf("-w <pass>   TLS Client Key Password, default %s\n", WOLFKM_ETSICLIENT_PASS);
     printf("-c <pem>    TLS Client Certificate, default %s\n", WOLFKM_ETSICLIENT_CERT);
     printf("-A <pem>    TLS CA Certificate, default %s\n", WOLFKM_ETSICLIENT_CA);
+    printf("-K <keyt>   Key Type: SECP256R1 (default), FFDHE_2048, X25519 or X448\n");
 }
 
 int main(int argc, char** argv)
@@ -199,13 +201,10 @@ int main(int argc, char** argv)
     info.clientCertFile = WOLFKM_ETSICLIENT_CERT;
     info.caFile = WOLFKM_ETSICLIENT_CA;
     info.useGet = 1;
-
-#ifdef DISABLE_SSL
-    usingTLS = 0;    /* can only disable at build time */
-#endif
+    info.keyType = ETSI_KEY_TYPE_SECP256R1;
 
     /* argument processing */
-    while ((ch = getopt(argc, argv, "?eh:p:t:l:r:f:gus:k:w:c:A:")) != -1) {
+    while ((ch = getopt(argc, argv, "?eh:p:t:l:r:f:gus:k:w:c:A:K:")) != -1) {
         switch (ch) {
             case '?' :
                 Usage();
@@ -256,7 +255,20 @@ int main(int argc, char** argv)
             case 'A':
                 info.caFile = optarg;
                 break;
-
+            case 'K':
+            {
+                /* find key type */
+                for (i=(int)ETSI_KEY_TYPE_MIN; i<=(int)ETSI_KEY_TYPE_FFDHE_8192; i++) {
+                    const char* keyStr = wolfEtsiKeyGetTypeStr((EtsiKeyType)i);
+                    if (keyStr != NULL) {
+                        if (XSTRNCMP(optarg, keyStr, XSTRLEN(keyStr)) == 0) {
+                            info.keyType = (EtsiKeyType)i;
+                            break;
+                        }
+                    }
+                }
+                break;
+            }
             default:
                 Usage();
                 exit(EX_USAGE);
