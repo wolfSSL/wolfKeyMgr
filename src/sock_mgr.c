@@ -72,7 +72,7 @@ static inline void TcpNoDelay(int fd)
 /* Initialize all stats to zero, pre allocs may increment some counters */
 static void InitStats(SvcStats* myStats)
 {
-    /* don't use memset, lock already init */
+    /* do not use memset, lock already init */
     myStats->totalConnections   = 0;
     myStats->completedRequests  = 0;
     myStats->timeouts           = 0;
@@ -620,7 +620,7 @@ static void SetupThread(SvcInfo* svc, EventThread* me)
     /* thread base */
     me->threadBase = event_base_new();
     if (me->threadBase == NULL) {
-        XLOG(WOLFKM_LOG_ERROR, "Can't allocate thread's event base\n");
+        XLOG(WOLFKM_LOG_ERROR, "Error allocating thread's event base\n");
         exit(EXIT_FAILURE);
     }
 
@@ -628,14 +628,14 @@ static void SetupThread(SvcInfo* svc, EventThread* me)
     me->notify = event_new(me->threadBase, me->notifyRecv,
                            (EV_READ | EV_PERSIST), ThreadEventProcess, me);
     if (event_add(me->notify, NULL) == -1) {
-        XLOG(WOLFKM_LOG_ERROR, "Can't add event for monitor pipe\n");
+        XLOG(WOLFKM_LOG_ERROR, "Error adding event for monitor pipe\n");
         exit(EXIT_FAILURE);
     }
 
     /* create connection queue */
     me->connections = malloc(sizeof(ConnQueue));
     if (me->connections == NULL) {
-        XLOG(WOLFKM_LOG_ERROR, "Can't allocate thread's Connection Queue\n");
+        XLOG(WOLFKM_LOG_ERROR, "Error allocating thread's Connection Queue\n");
         exit(EXIT_FAILURE);
     }
     ConnQueueInit(me->connections);
@@ -687,7 +687,7 @@ static void MakeWorker(void* (*f)(void*), void* arg)
     pthread_attr_init(&attr);
 
     if (pthread_create(&thread, &attr, f, arg) != 0) {
-        XLOG(WOLFKM_LOG_ERROR, "Can't make work worker\n");
+        XLOG(WOLFKM_LOG_ERROR, "Error creating worker\n");
         exit(EXIT_FAILURE);
     }
 }
@@ -752,7 +752,7 @@ static int InitServerTLS(SvcInfo* svc)
 
     svc->sslCtx = wolfSSL_CTX_new(wolfTLSv1_3_server_method());
     if (svc->sslCtx == NULL) {
-        XLOG(WOLFKM_LOG_ERROR, "Can't alloc TLS 1.3 context\n");
+        XLOG(WOLFKM_LOG_ERROR, "Error allocating TLS 1.3 context\n");
         return WOLFKM_BAD_MEMORY;
     }
     wolfSSL_CTX_SetIORecv(svc->sslCtx, wolfsslRecvCb);
@@ -762,7 +762,7 @@ static int InitServerTLS(SvcInfo* svc)
         ret = wolfSSL_CTX_load_verify_buffer(svc->sslCtx, svc->caBuffer,
             svc->caBufferSz, WOLFSSL_FILETYPE_ASN1);
         if (ret != WOLFSSL_SUCCESS) {
-            XLOG(WOLFKM_LOG_ERROR, "Can't load TLS cert into context\n");
+            XLOG(WOLFKM_LOG_ERROR, "Error loading TLS cert into context\n");
             wolfSSL_CTX_free(svc->sslCtx); svc->sslCtx = NULL;
             return ret;
         }
@@ -772,7 +772,7 @@ static int InitServerTLS(SvcInfo* svc)
         ret = wolfSSL_CTX_use_certificate_buffer(svc->sslCtx, svc->certBuffer,
             svc->certBufferSz, WOLFSSL_FILETYPE_ASN1);
         if (ret != WOLFSSL_SUCCESS) {
-            XLOG(WOLFKM_LOG_ERROR, "Can't load TLS cert into context\n");
+            XLOG(WOLFKM_LOG_ERROR, "Error loading TLS cert into context\n");
             wolfSSL_CTX_free(svc->sslCtx); svc->sslCtx = NULL;
             return ret;
         }
@@ -782,7 +782,7 @@ static int InitServerTLS(SvcInfo* svc)
         ret = wolfSSL_CTX_use_PrivateKey_buffer(svc->sslCtx, svc->keyBuffer, 
             svc->keyBufferSz, WOLFSSL_FILETYPE_ASN1);
         if (ret != WOLFSSL_SUCCESS) {
-            XLOG(WOLFKM_LOG_ERROR, "Can't load TLS key into context\n");
+            XLOG(WOLFKM_LOG_ERROR, "Error loading TLS key into context\n");
             wolfSSL_CTX_free(svc->sslCtx); svc->sslCtx = NULL;
             return ret;
         }
@@ -930,12 +930,12 @@ void wolfKeyMgr_SetMaxFiles(int max)
             now.rlim_max = now.rlim_cur;
 
         if (setrlimit(RLIMIT_NOFILE, &now) != 0) {
-            XLOG(WOLFKM_LOG_ERROR, "Can't setrlimit max files\n");
+            XLOG(WOLFKM_LOG_ERROR, "Error on setrlimit max files\n");
             exit(EX_OSERR);
         }
     }
     else {
-        XLOG(WOLFKM_LOG_ERROR, "Can't getrlimit max files\n");
+        XLOG(WOLFKM_LOG_ERROR, "Error on getrlimit max files\n");
         exit(EX_OSERR);
     }
 }
@@ -953,12 +953,12 @@ void wolfKeyMgr_SetCore(void)
             /* ok, just try old max */
             change.rlim_cur = change.rlim_max = old.rlim_max;
             if (setrlimit(RLIMIT_CORE, &change) != 0) {
-                XLOG(WOLFKM_LOG_ERROR, "Can't setrlimit core\n");
+                XLOG(WOLFKM_LOG_ERROR, "Error on setrlimit core\n");
                 exit(EX_OSERR);
             }
         }
     } else {
-        XLOG(WOLFKM_LOG_ERROR, "Can't getrlimit core\n");
+        XLOG(WOLFKM_LOG_ERROR, "Error on getrlimit core\n");
         exit(EX_OSERR);
     }
 }
@@ -1143,7 +1143,7 @@ int wolfKeyMgr_ServiceInit(SvcInfo* svc, int numThreads)
     /* get thread memory */
     svc->threads = calloc(numThreads, sizeof(EventThread));
     if (svc->threads == NULL) {
-        XLOG(WOLFKM_LOG_ERROR, "Can't allocate thread pool\n");
+        XLOG(WOLFKM_LOG_ERROR, "Error allocating thread pool\n");
         return WOLFKM_BAD_MEMORY;
     }
 
@@ -1159,7 +1159,7 @@ int wolfKeyMgr_ServiceInit(SvcInfo* svc, int numThreads)
     /* setup each thread */
     for (i = 0; i < numThreads; i++) {
         if (pipe(fds)) {
-            XLOG(WOLFKM_LOG_ERROR, "Can't make notify pipe %s\n", strerror(errno));
+            XLOG(WOLFKM_LOG_ERROR, "Error making notify pipe %s\n", strerror(errno));
             return WOLFKM_BAD_FILE;
         }
 
@@ -1287,7 +1287,7 @@ int wolfKeyMgr_LoadKeyFile(SvcInfo* svc, const char* fileName, int fileType,
             password);
     }
     if (ret <= 0) {
-        XLOG(WOLFKM_LOG_ERROR, "Can't convert Key file %s from PEM to DER: %d\n",
+        XLOG(WOLFKM_LOG_ERROR, "Error converting Key file %s from PEM to DER: %d\n",
             fileName, ret);
         free(svc->keyBuffer); svc->keyBuffer = NULL;
         return WOLFKM_BAD_KEY;
@@ -1316,7 +1316,7 @@ int wolfKeyMgr_LoadCertFile(SvcInfo* svc, const char* fileName, int fileType)
             svc->certBuffer, svc->certBufferSz,
             CERT_TYPE);
         if (ret <= 0) {
-            XLOG(WOLFKM_LOG_ERROR, "Can't convert file %s from PEM to DER: %d\n", 
+            XLOG(WOLFKM_LOG_ERROR, "Error converting file %s from PEM to DER: %d\n", 
                 fileName, ret);
             free(svc->certBuffer); svc->certBuffer = NULL;
             return WOLFKM_BAD_CERT;
@@ -1345,7 +1345,7 @@ int wolfKeyMgr_LoadCAFile(SvcInfo* svc, const char* fileName, int fileType)
             svc->caBuffer, svc->caBufferSz,
             CERT_TYPE);
         if (ret <= 0) {
-            XLOG(WOLFKM_LOG_ERROR, "Can't convert file %s from PEM to DER: %d\n", 
+            XLOG(WOLFKM_LOG_ERROR, "Error converting file %s from PEM to DER: %d\n", 
                 fileName, ret);
             free(svc->caBuffer); svc->caBuffer = NULL;
             return WOLFKM_BAD_CERT;

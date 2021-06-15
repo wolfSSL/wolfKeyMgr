@@ -27,7 +27,7 @@ EXTRA_DIST += README.md
 EXTRA_DIST += LICENSE
 
 include src/include.am
-include examples/etsi_client/include.am
+include examples/include.am
 include scripts/include.am
 include certs/include.am
 

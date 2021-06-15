@@ -1,4 +1,4 @@
-/* etsi_client.c
+/* etsi_test.c
  *
  * Copyright (C) 2006-2021 wolfSSL Inc.
  *
@@ -19,9 +19,10 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
-#include "etsi_client.h"
-#include "mod_etsi.h"
+#include "wolfkeymgr/mod_etsi.h"
+#include "examples/test_config.h"
 
+#define WOLFKM_ETST_CLIENT_DEF_REQUESTS     1       /* per thread */
 #define WOLFKM_ETST_CLIENT_DEF_TIMEOUT_SEC 10
 
 #ifndef EX_USAGE
@@ -161,24 +162,24 @@ static void* DoRequests(void* arg)
 /* usage help */
 static void Usage(void)
 {
-    printf("%s %s\n",  "etsi_client", PACKAGE_VERSION);
+    printf("%s %s\n",  "etsi_test", PACKAGE_VERSION);
     printf("-?          Help, print this usage\n");
     printf("-e          Error mode, force error response\n");
-    printf("-h <str>    Host to connect to, default %s\n", WOLFKM_DEFAULT_HOST);
-    printf("-p <num>    Port to connect to, default %s\n", WOLFKM_DEFAULT_ETSISVC_PORT);
+    printf("-h <str>    Host to connect to, default %s\n", ETSI_TEST_HOST);
+    printf("-p <num>    Port to connect to, default %s\n", ETSI_TEST_PORT_STR);
     printf("-t <num>    Thread pool size (stress test), default  %d\n", 0);
     printf("-l <num>    Log Level (1=Error to 4=Debug), default %d\n", WOLFKM_DEFAULT_LOG_LEVEL);
-    printf("-r <num>    Requests per thread, default %d\n",
-                                                          WOLFKM_DEFAULT_REQUESTS);
+    printf("-r <num>    Requests per thread, default %d\n", WOLFKM_ETST_CLIENT_DEF_REQUESTS);
     printf("-f <file>   <file> to store ETSI response\n");
     printf("-u          Use ETSI Push (default is get)\n");
     printf("-s <sec>    Timeout seconds (default %d)\n", WOLFKM_ETST_CLIENT_DEF_TIMEOUT_SEC);
 
-    printf("-k <pem>    TLS Client TLS Key, default %s\n", WOLFKM_ETSICLIENT_KEY);
-    printf("-w <pass>   TLS Client Key Password, default %s\n", WOLFKM_ETSICLIENT_PASS);
-    printf("-c <pem>    TLS Client Certificate, default %s\n", WOLFKM_ETSICLIENT_CERT);
-    printf("-A <pem>    TLS CA Certificate, default %s\n", WOLFKM_ETSICLIENT_CA);
-    printf("-K <keyt>   Key Type: SECP256R1 (default), FFDHE_2048, X25519 or X448\n");
+    printf("-k <pem>    TLS Client TLS Key, default %s\n", ETSI_TEST_CLIENT_KEY);
+    printf("-w <pass>   TLS Client Key Password, default %s\n", ETSI_TEST_CLIENT_PASS);
+    printf("-c <pem>    TLS Client Certificate, default %s\n", ETSI_TEST_CLIENT_CERT);
+    printf("-A <pem>    TLS CA Certificate, default %s\n", ETSI_TEST_CLIENT_CA);
+    printf("-K <keyt>   Key Type: SECP256R1, FFDHE_2048, X25519 or X448 (default %s)\n",
+        wolfEtsiKeyGetTypeStr(ETSI_TEST_KEY_TYPE));
 }
 
 int main(int argc, char** argv)
@@ -192,16 +193,16 @@ int main(int argc, char** argv)
     WorkThreadInfo info;
 
     memset(&info, 0, sizeof(info));
-    info.requests = WOLFKM_DEFAULT_REQUESTS;
-    info.host = WOLFKM_DEFAULT_HOST;
+    info.requests = WOLFKM_ETST_CLIENT_DEF_REQUESTS;
+    info.host = ETSI_TEST_HOST;
     info.timeoutSec = WOLFKM_ETST_CLIENT_DEF_TIMEOUT_SEC;
-    info.port = atoi(WOLFKM_DEFAULT_ETSISVC_PORT);
-    info.keyFile = WOLFKM_ETSICLIENT_KEY;
-    info.keyPass = WOLFKM_ETSICLIENT_PASS;
-    info.clientCertFile = WOLFKM_ETSICLIENT_CERT;
-    info.caFile = WOLFKM_ETSICLIENT_CA;
+    info.port = atoi(ETSI_TEST_PORT_STR);
+    info.keyFile = ETSI_TEST_CLIENT_KEY;
+    info.keyPass = ETSI_TEST_CLIENT_PASS;
+    info.clientCertFile = ETSI_TEST_CLIENT_CERT;
+    info.caFile = ETSI_TEST_CLIENT_CA;
     info.useGet = 1;
-    info.keyType = ETSI_KEY_TYPE_SECP256R1;
+    info.keyType = ETSI_TEST_KEY_TYPE;
 
     /* argument processing */
     while ((ch = getopt(argc, argv, "?eh:p:t:l:r:f:gus:k:w:c:A:K:")) != -1) {
@@ -261,7 +262,7 @@ int main(int argc, char** argv)
                 for (i=(int)ETSI_KEY_TYPE_MIN; i<=(int)ETSI_KEY_TYPE_FFDHE_8192; i++) {
                     const char* keyStr = wolfEtsiKeyGetTypeStr((EtsiKeyType)i);
                     if (keyStr != NULL) {
-                        if (XSTRNCMP(optarg, keyStr, XSTRLEN(keyStr)) == 0) {
+                        if (strncmp(optarg, keyStr, strlen(keyStr)) == 0) {
                             info.keyType = (EtsiKeyType)i;
                             break;
                         }

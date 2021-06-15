@@ -28,6 +28,7 @@ aminclude.am
 *.lo
 *.la
 *.libs
+.vscode
 
 # misc
 tags
@@ -38,7 +39,10 @@ diff
 
 # applications
 src/wolfkeymgr
-examples/etsi_client/etsi_client
+examples/middlebox/decrypt
+examples/etsi_test/etsi_test
+examples/https/client
+examples/https/server
 libtool
 wolfkeymgr/options.h
 
@@ -56,4 +60,4 @@ certs/server-*.pem
 certs/client-*.der
 certs/client-*.pem
 certs/serial.old
-options.h
+tracefile.txt

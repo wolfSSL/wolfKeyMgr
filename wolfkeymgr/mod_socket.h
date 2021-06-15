@@ -59,23 +59,41 @@ extern "C" {
     #define WKM_SOCKET_IS_INVALID(s) ((WKM_SOCKET_T)(s) < WKM_SOCKET_INVALID)
 #endif
 
+#ifdef USE_IPV6
+    typedef struct sockaddr_in6 SOCKADDR_IN_T;
+    #define AF_INET_V    AF_INET6
+#else
+    typedef struct sockaddr_in  SOCKADDR_IN_T;
+    #define AF_INET_V    AF_INET
+#endif
+
+#ifndef XHTONS
+    #define XHTONS(a) htons((a))
+#endif
+
 enum {
-    WKM_SOCKET_SELECT_FAIL,
-    WKM_SOCKET_SELECT_TIMEOUT,
-    WKM_SOCKET_SELECT_RECV_READY,
-    WKM_SOCKET_SELECT_SEND_READY,
-    WKM_SOCKET_SELECT_ERROR_READY
+    WKM_SOCKET_SELECT_FAIL    = WOLFKM_BAD_SOCKET,
+    WKM_SOCKET_SELECT_TIMEOUT = WOLFKM_BAD_TIMEOUT,
+    WKM_SOCKET_SELECT_RECV_READY = 1,
+    WKM_SOCKET_SELECT_SEND_READY = 2,
+    WKM_SOCKET_SELECT_ERROR_READY = 3
 };
 
 
-WOLFKM_API int  wolfSockConnect(WKM_SOCKET_T* sockfd, const char* ip, word16 port, int timeoutSec);
-WOLFKM_API int  wolfSockSetBlockingMode(WKM_SOCKET_T sockfd, int nonBlocking);
-WOLFKM_API int  wolfSocketRead(WKM_SOCKET_T sockfd, byte* buffer, word32 length);
-WOLFKM_API int  wolfSockSelect(WKM_SOCKET_T sockfd, int timeoutSec, int rx);
-WOLFKM_API int  wolfSocketWrite(WKM_SOCKET_T sockfd, const byte* buffer, word32 length);
-WOLFKM_API void wolfSocketClose(WKM_SOCKET_T sockfd);
-WOLFKM_API int  wolfSocketGetError(WKM_SOCKET_T sockfd, int* so_error);
+WOLFKM_API int  wolfSockConnect(WKM_SOCKET_T* sockFd, const char* ip, word16 port, int timeoutSec);
+WOLFKM_API int  wolfSockSetBlockingMode(WKM_SOCKET_T sockFd, int nonBlocking);
+WOLFKM_API int  wolfSocketRead(WKM_SOCKET_T sockFd, byte* buffer, word32 length);
+WOLFKM_API int  wolfSockSelect(WKM_SOCKET_T sockFd, int timeoutSec, int rx);
+WOLFKM_API int  wolfSocketWrite(WKM_SOCKET_T sockFd, const byte* buffer, word32 length);
+WOLFKM_API void wolfSocketClose(WKM_SOCKET_T sockFd);
+WOLFKM_API int  wolfSocketGetError(WKM_SOCKET_T sockFd, int* so_error);
 WOLFKM_API int  wolfSocketLastError(int err);
+
+WOLFKM_API int wolfSockListen(WKM_SOCKET_T* listenFd, word16 port);
+WOLFKM_API int wolfSockAccept(WKM_SOCKET_T listenFd, WKM_SOCKET_T* clientFd, 
+    SOCKADDR_IN_T* clientAddr, int timeoutSec);
+
+WOLFKM_API char* wolfSocketAddrStr(SOCKADDR_IN_T* addr);
 
 #ifdef __cplusplus
 }

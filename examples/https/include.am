@@ -1,0 +1,16 @@
+# vim:ft=automake
+# included from Top Level Makefile.am
+# All paths should be given relative to the root
+
+EXTRA_DIST += examples/https/README.md
+
+noinst_PROGRAMS += examples/https/client
+examples_https_client_SOURCES      = examples/https/client.c
+examples_https_client_LDADD        = src/libwolfkeymgr.la $(LIB_STATIC_ADD)
+examples_https_client_DEPENDENCIES = src/libwolfkeymgr.la
+
+
+noinst_PROGRAMS += examples/https/server
+examples_https_server_SOURCES      = examples/https/server.c
+examples_https_server_LDADD        = src/libwolfkeymgr.la $(LIB_STATIC_ADD)
+examples_https_server_DEPENDENCIES = src/libwolfkeymgr.la

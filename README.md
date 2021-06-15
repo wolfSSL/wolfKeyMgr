@@ -2,7 +2,7 @@
 
 This is a secure service for Key management based on ETSI Enterprise Transport Security specification. Provides middle-box decryption of TLS traffic.
 
-For a demo package showing use with Apache httpd and the wolfSSL sniffer please email facts@wolfssl.com.
+The library includes examples to demonstrate full passive decryption of an HTTPS server. We also have a demo package for Apache httpd available by request.
 
 ## Design
 
@@ -29,7 +29,7 @@ Based on:
 ## ETSI Design
 
 Server Side
-1) KeyGen (Gen Key). Currently ECC SECP25R1 only.
+1) KeyGen (Gen Key)
 2) Formatting the KeyGen (asymmetric key package)
 3) Sending Wire format (HTTPS)
 4) Key expiration and notification of new key to peers
@@ -38,6 +38,184 @@ Client side
 1) Encoding ETSI HTTP request
 2) Parsing HTTP response
 3) Unbundling asymmetric key
+
+
+## Key Manager Build and Install
+
+1. Install libevent version 2.0+
+
+```sh
+$ curl -L https://github.com/libevent/libevent/releases/download/release-2.1.12-stable/libevent-2.1.12-stable.tar.gz
+$ tar xzvf libevent-2.1.12-stable.tar.gz
+$ cd libevent-2.1.12-stable
+$ ./configure --disable-openssl
+$ make
+$ make check   # (optional, but highly recommended)
+$ sudo make install
+```
+
+2. Install wolfssl version v4.8.0+
+
+```sh
+$ ./autogen.sh
+$ git clone https://github.com/wolfssl/wolfssl
+$ cd wolfssl
+$ ./autogen.sh
+$ ./configure --enable-sniffer CFLAGS="-DWOLFSSL_DH_EXTRA -DWOLFSSL_SNIFFER_WATCH"
+$ make
+$ make check   # (optional, but highly recommended)
+$ sudo make install
+```
+
+Notes:
+
+* To enable all Intel (AESNI/AVX) speedups use `--enable-intelasm --enable-sp --enable-sp-asm`
+* To enable all ARMv8 (aarch64) speedups use `--enable-armasm --enable-sp --enable-sp-asm`
+* Requires at least wolfSSL v4.7.0 with PR's:
+   - https://github.com/wolfSSL/wolfssl/pull/4062
+   - https://github.com/wolfSSL/wolfssl/pull/4125
+
+3. Building wolfKeyMgr on *nix from git repository
+
+    Run the autogen script to generate configure, you'll need the autoconf tools
+    installed, then proceed to the next step.
+
+```sh
+$ ./autogen.sh
+```
+
+4. Building wolfKeyMgr on *nix from a release
+
+```sh
+$ ./configure
+$ make
+$ make check   # (optional, but highly recommended)
+$ sudo make install
+```
+
+Note: A custom install location can be specified using: `./configure --prefix=/opt/local`
+
+
+## Examples
+
+The wolf Key Manager includes examples for ETSI client tests, HTTPS server / client and middle-box decryption.
+
+All test parameters for these examples are in the `examples/test_config.h`.
+
+### Key Manager Service
+
+This application handles secure distribution and optional storage of the generated ephemeral keys.
+
+```sh
+$ ./src/wolfkeymgr -?
+wolfKeyManager 0.9
+-?          Help, print this usage
+-i          Do not chdir / in daemon mode
+-b          Daemon mode, run in background
+-p <str>    Pid File name, default ./wolfkeymgr.pid
+-l <num>    Log Level (1=Error to 4=Debug), default 4
+-f <str>    Log file name, default None
+-o <num>    Max open files, default  1024
+-s <num>    Seconds to timeout, default 60
+-r <num>    Key renewal timeout, default 3600
+-t <num>    Thread pool size, default  16
+-d          TLS Disable Mutual Authentication
+-k <pem>    TLS Server TLS Key, default ./certs/server-key.pem
+-w <pass>   TLS Server Key Password, default wolfssl
+-c <pem>    TLS Server Certificate, default ./certs/server-cert.pem
+-A <pem>    TLS CA Certificate, default ./certs/ca-cert.pem
+-K <keyt>   Key Type: SECP256R1, FFDHE_2048, X25519 or X448 (default SECP256R1)
+```
+
+### ETSI Test client
+
+This demonstrates secure interactions with the key manager service using the ETSI HTTPS GET/PUT commands for different key types.
+
+```sh
+$ ./examples/etsi_test/etsi_test -?
+etsi_test 0.9
+-?          Help, print this usage
+-e          Error mode, force error response
+-h <str>    Host to connect to, default localhost
+-p <num>    Port to connect to, default 8119
+-t <num>    Thread pool size (stress test), default  0
+-l <num>    Log Level (1=Error to 4=Debug), default 4
+-r <num>    Requests per thread, default 1
+-f <file>   <file> to store ETSI response
+-u          Use ETSI Push (default is get)
+-s <sec>    Timeout seconds (default 10)
+-k <pem>    TLS Client TLS Key, default certs/client-key.pem
+-w <pass>   TLS Client Key Password, default wolfssl
+-c <pem>    TLS Client Certificate, default certs/client-cert.pem
+-A <pem>    TLS CA Certificate, default certs/ca-cert.pem
+-K <keyt>   Key Type: SECP256R1, FFDHE_2048, X25519 or X448 (default SECP256R1)
+```
+
+This client also support stress testing options:
+* Use the thread pool "-t" to spin up more threads.
+* Use the ETSI test client "-r" to make additional requests per thread.
+
+
+### HTTP Server / Client
+
+We have included a simple HTTPS server to show getting the static ephemeral key using the ETSI client and key manager.
+
+```
+./examples/https/server
+
+HTTPS Server: Port 443
+
+Jun 15 14:26:54 2021: [INFO] Connected to ETSI service
+Jun 15 14:26:54 2021: [INFO] Sent get request (117 bytes)
+Jun 15 14:26:54 2021: [DEBUG] HTTP HTTP/1.1
+Jun 15 14:26:54 2021: [DEBUG] 	Code 200: OK
+Jun 15 14:26:54 2021: [DEBUG] 	Headers: 4
+Jun 15 14:26:54 2021: [DEBUG] 		Content-Type: : application/pkcs8
+Jun 15 14:26:54 2021: [DEBUG] 		Connection: : Keep-Alive
+Jun 15 14:26:54 2021: [DEBUG] 		Expires: : Tue, 15 Jun 2021 15:26:46 PDT
+Jun 15 14:26:54 2021: [DEBUG] 		Content-Length: : 121
+Jun 15 14:26:54 2021: [DEBUG] 	Body Size: 121
+Jun 15 14:26:54 2021: [INFO] Got ETSI response (121 bytes)
+Got ETSI static ephemeral key (121 bytes)
+Jun 15 14:26:54 2021: [INFO] ECC Pub X: C30E4D7E99B80D561736640FE108DB577DC399C9E9CAAA5338989D7B06978BA7
+Jun 15 14:26:54 2021: [INFO] ECC Pub Y: E446F67FED21B8B4267CD91738AC078CD32BB6E039875A4484CA07E859658526
+
+TLS Accept 127.0.0.1
+Jun 15 14:27:01 2021: [DEBUG] HTTP GET
+Jun 15 14:27:01 2021: [DEBUG] 	Version: HTTP/1.1
+Jun 15 14:27:01 2021: [DEBUG] 	URI: /
+Jun 15 14:27:01 2021: [DEBUG] 	Headers: 6
+Jun 15 14:27:01 2021: [DEBUG] 		Host: : localhost
+Jun 15 14:27:01 2021: [DEBUG] 		Accept: : text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Jun 15 14:27:01 2021: [DEBUG] 		Accept-Language: : en-us
+Jun 15 14:27:01 2021: [DEBUG] 		Connection: : keep-alive
+Jun 15 14:27:01 2021: [DEBUG] 		Accept-Encoding: : gzip, deflate, br
+Jun 15 14:27:01 2021: [DEBUG] 		User-Agent: : Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1 Safari/605.1.15
+
+ETSI Key Cached (valid for 3585 sec)
+```
+
+### Middle-Box Decryption of TLS traffic
+
+This is a passive way to decrypt TLS traffic including Perfect Forward Secrecy (PFS) TLS v1.3 where a new ephemeral key is used for each session.
+
+This can be run in a real-time mode capturing ethernet traffic on a port for one or more server interfaces. It can also be run passing a previously captured pcap file.
+
+```sh
+./examples/middlebox/decrypt -?
+usage: ./decrypt or ./decrypt dumpFile keyServerURL [server] [port] [password]
+```
+
+
+## Demo Usage
+
+1. Start the key manager: `./src/wolfkeymgr`
+2. Run the HTTPS server `./examples/https/server`
+3. Run the middle-box decryption `./examples/middlebox/decrypt` and use the default parameters.
+4. Open a web browser to `https://localhost` or run the HTTP client example `./examples/https/client`.
+5. In the middle-box decryption window you will see the decrypted HTTPS traffic.
+
+
 
 ## ETSI Security
 
@@ -126,159 +304,6 @@ VisibilityInformation ::= SEQUENCE {
 where the SHA-256 digest of the static Diffie-Hellman public key as transmitted in the key_share extension of the ServerHello message shall be represented as the vector of 32-bit words (H0, H1,..., H7) as defined in FIPS 180-4 [11]. The fingerprint field shall be set to H0||H1||(H2>>16), which is the first 80 bits of the digest vector read in big-endian format. The accessDescription field shall be a human-readable text string that identifies, either generally or specifically, the controlling or authorizing entities or roles or domains, or any combination of these, of any middle-boxes that may be allowed access to the Enterprise Transport Security static Diffie-Hellman private key.
 
 See Recommendation ITU-T X.509 (10/2016) | ISO/IEC 9594-8: "Information technology - Open Systems Interconnection - The Directory: Public-key and attribute certificate frameworks".
-
-
-## Key Manager Installation
-
-1. Install libevent version 2.0+
-
-```sh
-$ ./configure
-$ make
-$ make check   # (optional, but highly recommended)
-$ sudo make install
-```
-
-2. Install wolfssl version 3.4.2+
-
-Note: Requires at least wolfSSL v4.7.0 with PR https://github.com/wolfSSL/wolfssl/pull/3832
-
-```sh
-$ ./autogen.sh
-$ git clone https://github.com/wolfssl/wolfssl
-$ cd wolfssl
-$ ./autogen.sh
-$ ./configure --enable-sniffer CFLAGS="-DWOLFSSL_DH_EXTRA -DWOLFSSL_SNIFFER_WATCH"
-$ make
-$ make check   # (optional, but highly recommended)
-$ sudo make install
-```
-
-Notes:
-
-* To enable all Intel (AESNI/AVX) speedups use `--enable-intelasm --enable-sp --enable-sp-asm`
-* To enable all ARMv8 (aarch64) speedups use `--enable-armasm --enable-sp --enable-sp-asm`
-
-3. Building wolfKeyMgr on *nix from git repository
-
-    Run the autogen script to generate configure, you'll need the autoconf tools
-    installed, then proceed to the next step.
-
-```sh
-$ ./autogen.sh
-```
-
-4. Building wolfKeyMgr on *nix from a release
-
-```sh
-$ ./configure
-$ make
-$ make check   # (optional, but highly recommended)
-$ sudo make install
-```
-
-Note: A custom install location can be specified using: `./configure --prefix=/opt/local`
-
-
-## Key Manager and ETSI Client Command Line Help
-
-Help using `-?`:
-
-```sh
-$ ./src/wolfkeymgr -?
-wolfKeyManager 0.3
--?          Help, print this usage
--i          Don't chdir / in daemon mode
--b          Daemon mode, run in background
--p <str>    Pid File name, default ./wolfkeymgr.pid
--l <num>    Log Level (1=Error to 4=Debug), default 4
--f <str>    Log file name, default None
--o <num>    Max open files, default  1024
--s <num>    Seconds to timeout, default 60
--r <num>    Key renewal timeout, default 3600
--t <num>    Thread pool size, default  48
--d          TLS Disable Mutual Authentication
--k <pem>    TLS Server TLS Key, default ./certs/server-key.pem
--w <pass>   TLS Server Key Password, default wolfssl
--c <pem>    TLS Server Certificate, default ./certs/server-cert.pem
--A <pem>    TLS CA Certificate, default ./certs/ca-cert.pem
-```
-
-```sh
-$ ./examples/etsi_client/etsi_client -?
-etsi_client 0.3
--?          Help, print this usage
--e          Error mode, force error response
--h <str>    Host to connect to, default localhost
--p <num>    Port to connect to, default 8119
--t <num>    Thread pool size (stress test), default  0
--l <num>    Log Level (1=Error to 4=Debug), default 4
--r <num>    Requests per thread, default 100
--f <file>   <file> to store ETSI response
--u          Use ETSI Push (default is get)
--s <sec>    Timeout seconds (default 10)
--k <pem>    TLS Client TLS Key, default certs/client-key.pem
--w <pass>   TLS Client Key Password, default wolfssl
--c <pem>    TLS Client Certificate, default certs/client-cert.pem
--A <pem>    TLS CA Certificate, default ./certs/ca-cert.pem
-```
-
-
-## Running the Key Manager and ETSI client
-
-```sh
-# Start Key Manager with Log Level 3 (Info) and two worker threads
-$ ./src/wolfkeymgr -l 3 -t 2
-Feb 24 16:24:04 2021: [INFO] Starting Key Manager
-Feb 24 16:24:04 2021: [INFO] Binding listener :::8119
-Feb 24 16:24:04 2021: [WARNING] Generating new ECC key (index 0)
-Feb 24 16:24:04 2021: [INFO] loaded CA certificate file ./certs/ca-cert.pem
-Feb 24 16:24:04 2021: [INFO] loaded key file ./certs/server-key.pem
-Feb 24 16:24:04 2021: [INFO] loaded certificate file ./certs/server-cert.pem
-Feb 24 16:24:04 2021: [INFO] Setting up new ETSI conn item pool
-Feb 24 16:24:04 2021: [INFO] Growing ETSI service conn pool
-Feb 24 16:24:04 2021: [INFO] Growing ETSI service conn pool
-Feb 24 16:24:11 2021: [INFO] Accepted a connection, sent to thread 0
-Feb 24 16:24:11 2021: [INFO] New ETSI service conn
-Feb 24 16:24:11 2021: [INFO] Got ETSI Request (103 bytes)
-Feb 24 16:24:11 2021: [INFO] Creating connection context
-Feb 24 16:24:11 2021: [INFO] Sent ETSI Response (194 bytes)
-Feb 24 16:24:11 2021: [INFO] EventCb what = 17
-Feb 24 16:24:11 2021: [INFO] Peer ended connection, closing
-
-^C
-Feb 24 16:24:15 2021: [INFO] SIGINT handled.
-Feb 24 16:24:15 2021: [INFO] Ending main thread loop
-Feb 24 16:24:15 2021: [INFO] Sending cancel to threads
-Feb 24 16:24:15 2021: [INFO] Joining threads
-Feb 24 16:24:15 2021: [INFO] Worker thread exiting, tid = 140694064588352
-Feb 24 16:24:15 2021: [INFO] Worker thread exiting, tid = 140694056195648
-Feb 24 16:24:15 2021: [INFO] Done with main thread dispatching
-Feb 24 16:24:15 2021: [ERROR] Current stats:
-total   connections  =                   1
-completed            =                   1
-timeouts             =                   0
-current connections  =                   0
-max     concurrent   =                   1
-uptime  in seconds   =                  11
-average response(ms) =               0.046
-Feb 24 16:24:15 2021: [INFO] Exit Key Manager (ret 0)
-
-
-# Start ETSI client with single GET request
-$ ./examples/etsi_client/etsi_client -l 3
-Feb 24 16:24:11 2021: [INFO] Starting client
-Feb 24 16:24:11 2021: [INFO] Connected to ETSI service
-Feb 24 16:24:11 2021: [INFO] Sent single get request (103 bytes)
-Feb 24 16:24:11 2021: [INFO] Got ETSI response (121 bytes)
-Feb 24 16:24:11 2021: [INFO] Pub X: 4958C92FCF1D0C51A1969370B2CB2E846F25A3FBB5B9621020B338E7CCA8C53F
-Feb 24 16:24:11 2021: [INFO] Pub Y: 3EE0E7AF506A86380D11450A39BF3561917824F3A8BEC44AEF3B83C25F058DF9
-```
-
-## Stress Testing ETSI Server / Client
-
-* Use the thread pool "-t" to spin up more threads.
-* Use the ETSI client "-r" to make additional requests per thread.
 
 
 ## Support

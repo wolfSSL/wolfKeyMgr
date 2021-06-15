@@ -1,0 +1,9 @@
+# vim:ft=automake
+# included from Top Level Makefile.am
+# All paths should be given relative to the root
+
+
+noinst_PROGRAMS += examples/etsi_test/etsi_test
+examples_etsi_test_etsi_test_SOURCES      = examples/etsi_test/etsi_test.c
+examples_etsi_test_etsi_test_LDADD        = src/libwolfkeymgr.la $(LIB_STATIC_ADD)
+examples_etsi_test_etsi_test_DEPENDENCIES = src/libwolfkeymgr.la

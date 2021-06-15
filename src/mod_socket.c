@@ -22,18 +22,6 @@
 #include "wolfkeymgr/mod_socket.h"
 
 
-#ifdef USE_IPV6
-    typedef struct sockaddr_in6 SOCKADDR_IN_T;
-    #define AF_INET_V    AF_INET6
-#else
-    typedef struct sockaddr_in  SOCKADDR_IN_T;
-    #define AF_INET_V    AF_INET
-#endif
-
-#ifndef XHTONS
-    #define XHTONS(a) htons((a))
-#endif
-
 static int build_addr(SOCKADDR_IN_T* addr, const char* peer, word16 port)
 {
     int ret = 0;
@@ -46,14 +34,14 @@ static int build_addr(SOCKADDR_IN_T* addr, const char* peer, word16 port)
         return WOLFKM_BAD_ARGS;
     }
 
-    XMEMSET(addr, 0, sizeof(SOCKADDR_IN_T));
+    memset(addr, 0, sizeof(SOCKADDR_IN_T));
 
 #ifndef USE_IPV6
     /* peer could be in human readable form */
     if ( ((size_t)peer != INADDR_ANY) && isalpha((int)peer[0])) {
         struct hostent* entry = gethostbyname(peer);
         if (entry) {
-            XMEMCPY(&addr->sin_addr.s_addr, entry->h_addr_list[0],
+            memcpy(&addr->sin_addr.s_addr, entry->h_addr_list[0],
                    entry->h_length);
             useLookup = 1;
         }
@@ -83,7 +71,7 @@ static int build_addr(SOCKADDR_IN_T* addr, const char* peer, word16 port)
         int    ret;
         char   strPort[80];
 
-        XMEMSET(&hints, 0, sizeof(hints));
+        memset(&hints, 0, sizeof(hints));
 
         hints.ai_family   = AF_INET_V;
         hints.ai_socktype = SOCK_STREAM;
@@ -98,7 +86,7 @@ static int build_addr(SOCKADDR_IN_T* addr, const char* peer, word16 port)
             return WOLFKM_BAD_HOST;
         }
 
-        XMEMCPY(addr, answer->ai_addr, answer->ai_addrlen);
+        memcpy(addr, answer->ai_addr, answer->ai_addrlen);
         freeaddrinfo(answer);
     }
 #endif
@@ -106,10 +94,10 @@ static int build_addr(SOCKADDR_IN_T* addr, const char* peer, word16 port)
 }
 
 
-static int tcp_socket(WKM_SOCKET_T* sockfd)
+static int tcp_socket(WKM_SOCKET_T* sockFd)
 {
-    *sockfd = socket(AF_INET_V, SOCK_STREAM, IPPROTO_TCP);
-    if (WKM_SOCKET_IS_INVALID(*sockfd)) {
+    *sockFd = socket(AF_INET_V, SOCK_STREAM, IPPROTO_TCP);
+    if (WKM_SOCKET_IS_INVALID(*sockFd)) {
         XLOG(WOLFKM_LOG_ERROR, "socket failed\n");
         return WOLFKM_BAD_MEMORY;
     }
@@ -117,36 +105,37 @@ static int tcp_socket(WKM_SOCKET_T* sockfd)
 }
 
 /* if timeoutSec == 0 then no timeout and using blocking mode */
-int wolfSockConnect(WKM_SOCKET_T* sockfd, const char* ip, word16 port,
+int wolfSockConnect(WKM_SOCKET_T* sockFd, const char* ip, word16 port,
     int timeoutSec)
 {
     int ret, err = 0;
     SOCKADDR_IN_T addr;
+
+    if (sockFd == NULL) {
+        return WOLFKM_BAD_ARGS;
+    }
     
     ret = build_addr(&addr, ip, port);
     if (ret != 0) {
         return ret;
     }
     
-    ret = tcp_socket(sockfd);
+    ret = tcp_socket(sockFd);
     if (ret == 0) {
         if (timeoutSec > 0) {
             /* enable non-blocking */
-            wolfSockSetBlockingMode(*sockfd, 1);
+            wolfSockSetBlockingMode(*sockFd, 1);
         }
 
-        ret = connect(*sockfd, (const struct sockaddr*)&addr, sizeof(addr));
+        ret = connect(*sockFd, (const struct sockaddr*)&addr, sizeof(addr));
         if (ret < 0) {
             err = wolfSocketLastError(ret);
             if (err == EINPROGRESS && timeoutSec > 0) {
                 /* wait on send or error */
-                ret = wolfSockSelect(*sockfd, timeoutSec, 0);
+                ret = wolfSockSelect(*sockFd, timeoutSec, 0);
                 if (ret == WKM_SOCKET_SELECT_SEND_READY) {
                     /* make sure socket is not reporting an error */
-                    ret = wolfSocketGetError(*sockfd, &err);
-                }
-                else {
-                    ret = WOLFKM_BAD_TIMEOUT;
+                    ret = wolfSocketGetError(*sockFd, &err);
                 }
             }
         }
@@ -164,7 +153,75 @@ int wolfSockConnect(WKM_SOCKET_T* sockfd, const char* ip, word16 port,
     return ret;
 }
 
-int wolfSockSelect(WKM_SOCKET_T sockfd, int timeoutSec, int rx)
+#define SOCK_LISTEN_MAX_QUEUE 5
+int wolfSockListen(WKM_SOCKET_T* listenFd, word16 port)
+{
+    int ret;
+    SOCKADDR_IN_T addr;
+
+    if (listenFd == NULL) {
+        return WOLFKM_BAD_ARGS;
+    }
+    
+    ret = build_addr(&addr, NULL, port);
+    if (ret != 0) {
+        return ret;
+    }
+    
+    ret = tcp_socket(listenFd);
+    if (ret == 0) {
+        ret = bind(*listenFd, (const struct sockaddr*)&addr, sizeof(addr));
+    }
+    if (ret == 0) {
+        ret = listen(*listenFd, SOCK_LISTEN_MAX_QUEUE);
+    }
+    
+    if (ret < 0) {
+        int err = wolfSocketLastError(ret);
+        XLOG(WOLFKM_LOG_ERROR, "tcp listen failed: %d err %d (%s)\n", 
+            ret, err, strerror(err));
+        ret = err;
+    }
+
+    return ret;
+
+}
+
+int wolfSockAccept(WKM_SOCKET_T listenFd, WKM_SOCKET_T* clientFd, 
+    SOCKADDR_IN_T* clientAddr, int timeoutSec)
+{
+    int ret = 0;
+    socklen_t clientAddrLen = (socklen_t)sizeof(SOCKADDR_IN_T);
+
+    if (WKM_SOCKET_IS_INVALID(listenFd) || clientFd == NULL) {
+        return WOLFKM_BAD_ARGS;
+    }
+
+    if (timeoutSec > 0) {
+        /* enable non-blocking */
+        wolfSockSetBlockingMode(listenFd, 1);
+    }
+
+    /* use select to indicate connection is ready */
+    /* wait on recv or error */
+    ret = wolfSockSelect(listenFd, timeoutSec, 1);
+    if (ret == WKM_SOCKET_SELECT_RECV_READY) {
+        *clientFd = accept(listenFd, (struct sockaddr*)clientAddr, &clientAddrLen);
+        if (WKM_SOCKET_IS_INVALID(*clientFd)) {
+            int err = wolfSocketLastError(ret);
+            XLOG(WOLFKM_LOG_ERROR, "tcp accept failed: %d (%s)\n", 
+                err, strerror(err));
+            ret = err;
+        }
+        else {
+            ret = 0;
+        }
+    }
+    return ret;
+}
+
+
+int wolfSockSelect(WKM_SOCKET_T sockFd, int timeoutSec, int rx)
 {
     int res;
     fd_set fds, errfds;
@@ -173,18 +230,18 @@ int wolfSockSelect(WKM_SOCKET_T sockfd, int timeoutSec, int rx)
     WKM_SOCKET_T nfds = 0;
     struct timeval timeout = {(timeoutSec > 0) ? timeoutSec : 0, 0};
 
-    if (WKM_SOCKET_IS_INVALID(sockfd)) {
+    if (WKM_SOCKET_IS_INVALID(sockFd)) {
         return WOLFKM_BAD_ARGS;
     }
 
 #ifndef USE_WINDOWS_API
-    nfds = (int)sockfd + 1;
+    nfds = (int)sockFd + 1;
 #endif
 
     FD_ZERO(&fds);
-    FD_SET(sockfd, &fds);
+    FD_SET(sockFd, &fds);
     FD_ZERO(&errfds);
-    FD_SET(sockfd, &errfds);
+    FD_SET(sockFd, &errfds);
 
     if (rx)
         recvfds = &fds;
@@ -196,10 +253,10 @@ int wolfSockSelect(WKM_SOCKET_T sockfd, int timeoutSec, int rx)
         return WKM_SOCKET_SELECT_TIMEOUT;
     else if (res > 0) {
         /* check error first, then rx/tx */
-        if (FD_ISSET(sockfd, &errfds)) {
+        if (FD_ISSET(sockFd, &errfds)) {
             return WKM_SOCKET_SELECT_ERROR_READY;
         }
-        else if (FD_ISSET(sockfd, &fds)) {
+        else if (FD_ISSET(sockFd, &fds)) {
             if (rx)
                 return WKM_SOCKET_SELECT_RECV_READY;
             else
@@ -210,23 +267,23 @@ int wolfSockSelect(WKM_SOCKET_T sockfd, int timeoutSec, int rx)
     return WKM_SOCKET_SELECT_FAIL;
 }
 
-int wolfSockSetBlockingMode(WKM_SOCKET_T sockfd, int nonBlocking)
+int wolfSockSetBlockingMode(WKM_SOCKET_T sockFd, int nonBlocking)
 {
     int ret = 0;
 
 #ifdef USE_WINDOWS_API
     unsigned long blocking = nonBlocking;
-    ret = ioctlsocket(sockfd, FIONBIO, &blocking);
+    ret = ioctlsocket(sockFd, FIONBIO, &blocking);
     if (ret == SOCKET_ERROR)
         ret = -1;
 #else
-    ret = fcntl(sockfd, F_GETFL, 0);
+    ret = fcntl(sockFd, F_GETFL, 0);
     if (ret >= 0) {
         if (nonBlocking)
             ret |= O_NONBLOCK;
         else
             ret &= ~O_NONBLOCK;
-        ret = fcntl(sockfd, F_SETFL, ret);
+        ret = fcntl(sockFd, F_SETFL, ret);
     }
 #endif
     if (ret < 0) {
@@ -238,32 +295,32 @@ int wolfSockSetBlockingMode(WKM_SOCKET_T sockfd, int nonBlocking)
     return ret;
 }
 
-int wolfSocketRead(WKM_SOCKET_T sockfd, byte* buffer, word32 length)
+int wolfSocketRead(WKM_SOCKET_T sockFd, byte* buffer, word32 length)
 {
-    return (int)recv(sockfd, buffer, length, 0);
+    return (int)recv(sockFd, buffer, length, 0);
 }
 
-int wolfSocketWrite(WKM_SOCKET_T sockfd, const byte* buffer,
+int wolfSocketWrite(WKM_SOCKET_T sockFd, const byte* buffer,
     word32 length)
 {
-    return (int)send(sockfd, buffer, length, 0);
+    return (int)send(sockFd, buffer, length, 0);
 }
 
-void wolfSocketClose(WKM_SOCKET_T sockfd)
+void wolfSocketClose(WKM_SOCKET_T sockFd)
 {
-    if (WKM_SOCKET_IS_INVALID(sockfd)) {
+    if (WKM_SOCKET_IS_INVALID(sockFd)) {
     #ifdef USE_WINDOWS_API
-        closesocket(sockfd);
+        closesocket(sockFd);
     #else
-        close(sockfd);
+        close(sockFd);
     #endif
     }
 }
 
-int wolfSocketGetError(WKM_SOCKET_T sockfd, int* so_error)
+int wolfSocketGetError(WKM_SOCKET_T sockFd, int* so_error)
 {
     socklen_t len = (socklen_t)sizeof(*so_error);
-    return getsockopt(sockfd, SOL_SOCKET, SO_ERROR, so_error, &len);
+    return getsockopt(sockFd, SOL_SOCKET, SO_ERROR, so_error, &len);
 }
 
 int wolfSocketLastError(int err)
@@ -276,5 +333,21 @@ int wolfSocketLastError(int err)
     return err; /* Return provided error value */
 #else
     return errno;
+#endif
+}
+
+char* wolfSocketAddrStr(SOCKADDR_IN_T* addr)
+{
+#ifndef USE_IPV6
+    static char output[32];
+    memset(output, 0, sizeof(output));
+    if (addr) {
+        byte *p = (byte*)&addr->sin_addr;
+        snprintf(output, sizeof(output), "%d.%d.%d.%d", p[0], p[1], p[2], p[3]);
+    }
+    return output;
+#else
+    static char output[42];
+    return (char*)inet_ntop(AF_INET6, addr, output, 42);
 #endif
 }

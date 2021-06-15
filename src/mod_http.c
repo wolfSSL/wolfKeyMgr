@@ -74,6 +74,12 @@ const char* wolfHttpGetHeaderStr(HttpHeaderType type, word32* strLen)
         case HTTP_HDR_ACCEPT_RANGES:
             str = "Accept-Ranges: ";
             break;
+        case HTTP_HDR_ACCEPT_LANGUAGE:
+            str = "Accept-Language: ";
+            break;
+        case HTTP_HDR_ACCEPT_ENCODING:
+            str = "Accept-Encoding: ";
+            break;            
         case HTTP_HDR_CONNECTION:
             str = "Connection: ";
             break;
@@ -89,6 +95,13 @@ const char* wolfHttpGetHeaderStr(HttpHeaderType type, word32* strLen)
         case HTTP_HDR_EXPIRES:
             str = "Expires: ";
             break;
+        case HTTP_HDR_USER_AGENT:
+            str = "User-Agent: ";
+            break;
+        case HTTP_HDR_UPGRADE_INSECURE_REQUESTS:
+            str = "Upgrade-Insecure-Requests: ";
+            break;
+
         /* TODO: Add more header types */
 
         default:
@@ -191,20 +204,24 @@ int wolfHttpServer_ParseRequest(HttpReq* req, byte* buf, word32 sz)
 
     /* Set URI */
     req->uri = sec;
-    sec = endline + 2; /* 2=length of CRLF */
 
     /* Parse headers */
-    endline = strstr(sec, kCrlf); /* Find end of line */
-    while (endline) {
-        *endline = '\0'; /* null terminate line */
-        HttpParseHeader(req->headers, &req->headerCount, sec);
-        endline += 2; /* 2=length of CRLF */
-
-        /* check if we have reached end of incoming buffer */
-        if (endline >= (char*)buf + sz)
+    req->headerCount = 0;
+    do {
+        if (endline == NULL)
             break;
-        endline = strstr(endline, kCrlf); /* Find end of line */
-    }
+        sec = endline + 2; /* 2=length of CRLF */
+        /* check if we have reached end of incoming buffer */    
+        if (sec >= (char*)buf + sz)
+            break;
+
+        /* Find end of line and null terminate */
+        endline = strstr(sec, kCrlf);
+        if (endline != NULL)
+            *endline = '\0'; /* null terminate line */
+        if (sec[0] != '\r' && sec[1] != '\n')
+            HttpParseHeader(req->headers, &req->headerCount, sec);
+    } while (endline != NULL);
 
     return 0;
 }

@@ -52,6 +52,8 @@ const char* wolfKeyMgr_GetError(int err)
             return "Error resolving host name";
         case WOLFKM_BAD_TIMEOUT:
             return "Timeout error";
+        case WOLFKM_BAD_SOCKET:
+            return "Socket error";
         case WOLFKM_BAD_REQUEST_TYPE:
             return "Bad Header Request Type";
 
@@ -70,14 +72,14 @@ void wolfKeyMgr_SetLogFile(const char* fileName, int daemon, enum log_level_t le
     if (daemon == 0 && fileName == NULL)
         logFile = stderr;
     else if (daemon == 1 && fileName == NULL) {
-        perror("Daemon needs a log file, can't write to stderr");
+        perror("Daemon needs a log file, cannot write to stderr");
         exit(EXIT_FAILURE);
     }
     else {
         /* let's use user specificed log file */
         logFile = fopen(fileName, "a+");
         if (logFile == NULL) {
-            perror("Can't open log file for writing");
+            perror("Cannot open log file for writing");
             exit(EXIT_FAILURE);
         }
     }
@@ -115,10 +117,10 @@ void wolfKeyMgr_Log(enum log_level_t level, const char* fmt, ...)
     struct  tm local;
 
     if (level > logLevel)
-        return;   /* don't need to output */
+        return; /* do not need to output */
 
     if (logFile == NULL)
-        return;   /* can't output */
+        return; /* cannot output */
 
     /* prefix timestamp */
     timeStr[0] = '\0';
@@ -163,7 +165,7 @@ int wolfLoadFileBuffer(const char* fileName, byte** buffer, word32* sz)
 
     tmpFile = fopen(fileName, "rb");
     if (tmpFile == NULL) {
-        XLOG(WOLFKM_LOG_ERROR, "file %s can't be opened for reading\n",
+        XLOG(WOLFKM_LOG_ERROR, "file %s cannot be opened for reading\n",
                             fileName);
         return WOLFKM_BAD_FILE;
     }
@@ -189,7 +191,7 @@ int wolfLoadFileBuffer(const char* fileName, byte** buffer, word32* sz)
     fclose(tmpFile);
 
     if (buffer && bytesRead == 0) {
-        XLOG(WOLFKM_LOG_ERROR, "file %s can't be read\n", fileName);
+        XLOG(WOLFKM_LOG_ERROR, "file %s cannot be read\n", fileName);
         free(*buffer); *buffer = NULL;
         return WOLFKM_BAD_FILE;
     }

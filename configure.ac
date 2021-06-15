@@ -5,7 +5,7 @@
 
 AC_PREREQ(2.59)
 
-AC_INIT([wolfKeyManager],[0.8],[http://www.wolfssl.com])
+AC_INIT([wolfKeyManager],[0.9],[http://www.wolfssl.com])
 AC_CONFIG_AUX_DIR(config)
 AC_CONFIG_HEADERS([wolfkeymgr/config.h])
 AC_CONFIG_MACRO_DIR(m4)
@@ -71,7 +71,7 @@ LT_PREREQ([2.2])
 LT_INIT([disable-static win32-dll])
 
 # Shared library versioning
-WOLFKM_LIBRARY_VERSION=5:0:0
+WOLFKM_LIBRARY_VERSION=5:1:0
 #                      | | |
 #               +------+ | +---+
 #               |        |     |
@@ -121,7 +121,6 @@ esac
 # Checks for library functions.
 LIB_SOCKET_NSL
 
-
 # ETSI Service
 AC_ARG_ENABLE([etsisvc],
     [AS_HELP_STRING([--enable-etsisvc],[Enable the ETSI key service (default: enabled)])],
@@ -134,6 +133,21 @@ then
     CFLAGS="$CFLAGS -DWOLFKM_ETSI_SERVICE"
 fi
 
+
+# SNIFFER
+AC_ARG_ENABLE([sniffer],
+   [AS_HELP_STRING([--enable-sniffer],[Enable sniffer support (default: disabled)])],
+   [ ENABLED_SNIFFER=$enableval ],
+   [ ENABLED_SNIFFER=yes ]
+   )
+AS_IF([ test "x$ENABLED_SNIFFER" = "xyes" ],
+      [
+          CFLAGS="$CFLAGS -DWOLFKM_SNIFFER"
+          AC_CHECK_HEADERS([pcap/pcap.h],
+              [ ENABLED_SNIFFTEST=yes ],
+              [ AC_MSG_WARN([cannot enable sniffer test without having libpcap available.]) ]
+          )
+      ])
 
 
 # The following AM_CONDITIONAL statements set flags for use in the Makefiles.

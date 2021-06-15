@@ -1,4 +1,4 @@
-/* etsi_client.c
+/* mod_etsi.c
  *
  * Copyright (C) 2006-2021 wolfSSL Inc.
  *
@@ -184,6 +184,35 @@ int wolfEtsiClientMakeRequest(EtsiClientType type, const char* fingerprint,
     return ret;
 }
 
+static void ParseHttpResponseExpires(HttpRsp* rsp, EtsiKey* key, time_t now)
+{
+    int i;
+
+    /* capture expiration */
+    for (i=0; i<rsp->headerCount; i++) {
+        if (rsp->headers[i].type == HTTP_HDR_EXPIRES) {
+            struct tm tm;
+            memset(&tm, 0, sizeof(tm));
+            /* Convert string to time_t */
+            /* HTTP expires example: "Wed, 21 Oct 2015 07:28:00 GMT" */
+            if (strptime(rsp->headers[i].string, HTTP_DATE_FMT,
+                                                            &tm) != NULL) {
+                key->expires = mktime(&tm);
+                /* sanity check time against current time */
+                /* if this is past current here then it has already 
+                    expired or is invalid */
+                if (key->expires < now) {
+                    XLOG(WOLFKM_LOG_WARN,
+                        "Key expires time invalid %lu < %lu\n",
+                        key->expires, now);
+                    key->expires = 0;
+                }
+            }
+            break;
+        }
+    }
+}
+
 int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key, 
     EtsiKeyType keyType, const char* fingerprint, const char* contextStr,
     int timeoutSec)
@@ -191,7 +220,7 @@ int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
     int    ret;
     byte   request[ETSI_MAX_REQUEST_SZ];
     word32 requestSz = ETSI_MAX_REQUEST_SZ;
-    int    pos, i;
+    int    pos;
     HttpRsp rsp;
     const char* group;
     time_t now;
@@ -209,7 +238,7 @@ int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
         return 0;
     }
 
-    /* Get new key */
+    /* build GET request for current key */
     key->type = keyType;
     group = wolfEtsiKeyNamedGroupStr(key);
     ret = wolfEtsiClientMakeRequest(ETSI_CLIENT_GET, fingerprint, group,
@@ -219,7 +248,7 @@ int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
         return ret;
     }
 
-    /* send key request */
+    /* send GET key request */
     wc_LockMutex(&client->lock);
     pos = 0;
     while (pos < requestSz) {
@@ -241,7 +270,7 @@ int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
     /* TODO: Integrate HTTP processing with read to handle larger payloads */
     key->responseSz = sizeof(key->response);
     do {
-        ret = wolfTlsRead(client->ssl, (byte*)key->response, key->responseSz,
+        ret = wolfTlsRead(client->ssl, (byte*)key->response, (int*)&key->responseSz,
             timeoutSec);
         if (ret < 0) {
             XLOG(WOLFKM_LOG_ERROR, "DoClientRead failed: %d\n", ret);
@@ -253,36 +282,12 @@ int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
     
     if (ret > 0) {
         /* parse HTTP server response */
-        key->responseSz = ret;
         key->expires = 0;
         ret = wolfHttpClient_ParseResponse(&rsp,
             key->response, key->responseSz);
         if (ret == 0 && rsp.body && rsp.bodySz > 0) {
             wolfHttpResponsePrint(&rsp);
-
-            /* capture expiration */
-            for (i=0; i<rsp.headerCount; i++) {
-                if (rsp.headers[i].type == HTTP_HDR_EXPIRES) {
-                    struct tm tm;
-                    memset(&tm, 0, sizeof(tm));
-                    /* Convert string to time_t */
-                    /* HTTP expires example: "Wed, 21 Oct 2015 07:28:00 GMT" */
-                    if (strptime(rsp.headers[i].string, HTTP_DATE_FMT,
-                                                                 &tm) != NULL) {
-                        key->expires = mktime(&tm);
-                        /* sanity check time against current time */
-                        /* if this is past current here then it has already 
-                            expired or is invalid */
-                        if (key->expires < now) {
-                            XLOG(WOLFKM_LOG_WARN,
-                                "Key expires time invalid %lu < %lu\n",
-                                key->expires, now);
-                            key->expires = 0;
-                        }
-                    }
-                    break;
-                }
-            }
+            ParseHttpResponseExpires(&rsp, key, now);
 
             /* move payload (body) to response (same buffer) */
             memcpy(key->response, rsp.body, rsp.bodySz);
@@ -307,14 +312,93 @@ int wolfEtsiClientPush(EtsiClientCtx* client, EtsiKeyType keyType,
     const char* fingerprint, const char* contextStr,
     EtsiKeyCallbackFunc cb, void* cbCtx)
 {
-    /* TODO: Add push with callback */
-    (void)client;
-    (void)keyType;
-    (void)fingerprint;
-    (void)contextStr;
-    (void)cb;
-    (void)cbCtx;
-    return WOLFKM_NOT_COMPILED_IN;
+    int    ret;
+    byte   request[ETSI_MAX_REQUEST_SZ];
+    word32 requestSz = ETSI_MAX_REQUEST_SZ;
+    int    pos;
+    HttpRsp rsp;
+    const char* group;
+    time_t now;
+    EtsiKey key;
+
+    if (client == NULL || cb == NULL) {
+        return WOLFKM_BAD_ARGS;
+    }
+
+    /* Request PUSH for new keys */
+    memset(&key, 0, sizeof(key));
+    key.type = keyType;
+    group = wolfEtsiKeyNamedGroupStr(&key);
+    ret = wolfEtsiClientMakeRequest(ETSI_CLIENT_PUSH, fingerprint, group,
+        contextStr, request, &requestSz);
+    if (ret != 0) {
+        XLOG(WOLFKM_LOG_INFO, "EtsiClientMakeRequest failed: %d\n", ret);
+        return ret;
+    }
+
+    /* send PUSH key request */
+    wc_LockMutex(&client->lock);
+    pos = 0;
+    while (pos < requestSz) {
+        ret = wolfTlsWrite(client->ssl, (byte*)request + pos,
+            requestSz - pos);
+        if (ret < 0) {
+            wc_UnLockMutex(&client->lock);
+            XLOG(WOLFKM_LOG_INFO, "DoClientSend failed: %d (%s)\n", ret,
+                wolfSSL_ERR_reason_error_string(ret));
+            return ret;
+        }
+        pos += ret;
+    }
+    XLOG(WOLFKM_LOG_INFO, "Sent get request (%d bytes)\n", requestSz);
+
+    /* wait for key response */
+    do {
+        /* 0 = no timeout - blocking */
+        key.responseSz = sizeof(key.response);
+        ret = wolfTlsRead(client->ssl, (byte*)key.response,
+            (int*)&key.responseSz, 0);
+        if (ret < 0 && ret != WOLFKM_BAD_TIMEOUT) {
+            XLOG(WOLFKM_LOG_ERROR, "DoClientRead failed: %d\n", ret);
+            break;
+        }
+        if (ret > 0) {
+            /* asymmetric key package response */
+            XLOG(WOLFKM_LOG_INFO, "Got ETSI response (%d bytes)\n",
+                key.responseSz);
+
+            /* parse HTTP server response */
+            key.expires = 0;
+            ret = wolfHttpClient_ParseResponse(&rsp,
+                key.response, key.responseSz);
+            if (ret == 0 && rsp.body && rsp.bodySz > 0) {
+                wolfHttpResponsePrint(&rsp);
+
+                now = wolfGetCurrentTimeT();
+                ParseHttpResponseExpires(&rsp, &key, now);
+
+                /* move payload (body) to response (same buffer) */
+                memcpy(key.response, rsp.body, rsp.bodySz);
+                key.responseSz = rsp.bodySz;
+
+                ret = cb(client, &key, cbCtx);
+                if (ret != 0) {
+                    /* callback requested exit */
+                    XLOG(WOLFKM_LOG_INFO, "Push callback requested exit %d\n", ret);
+                    break;
+                }
+            }
+            else {
+                XLOG(WOLFKM_LOG_ERROR, "Error parsing HTTP response! %d\n", ret);
+                break;
+            }
+        }
+
+        /* zero response means try again */
+    } while (ret == 0 || ret == WOLFKM_BAD_TIMEOUT);
+    wc_UnLockMutex(&client->lock);
+
+    return ret;
 }
 
 
@@ -446,6 +530,7 @@ int wolfEtsiKeyLoadCTX(EtsiKey* key, WOLFSSL_CTX* ctx)
 
 int wolfEtsiKeyLoadSSL(EtsiKey* key, WOLFSSL* ssl)
 {
+    int ret;
     int keyAlgo;
 
     if (key == NULL || ssl == NULL)
@@ -454,8 +539,13 @@ int wolfEtsiKeyLoadSSL(EtsiKey* key, WOLFSSL* ssl)
     /* determine key algo */
     keyAlgo = wolfEtsiKeyGetPkType(key);
 
-    return wolfSSL_set_ephemeral_key(ssl, keyAlgo, 
+    ret = wolfSSL_set_ephemeral_key(ssl, keyAlgo, 
         key->response, key->responseSz, WOLFSSL_FILETYPE_ASN1);
+    if (ret == 0) {
+        /* TODO: handle return code */
+        (void)wolfSSL_UseKeyShare(ssl, key->type);
+    }
+    return ret;
 }
 
 int wolfEtsiKeyPrint(EtsiKey* key)
