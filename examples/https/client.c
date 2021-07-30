@@ -21,9 +21,10 @@
 
 #include "wolfkeymgr/mod_tls.h"
 #include "wolfkeymgr/mod_http.h"
+#include "examples/https/client.h"
 #include "examples/test_config.h"
 
-int main(int argc, char* argv[])
+int https_client_test(int argc, char** argv)
 {
     int ret;
     WOLFSSL_CTX* ctx;
@@ -31,7 +32,11 @@ int main(int argc, char* argv[])
     HttpRsp rsp;
     byte data[HTTPS_TEST_MAX_DATA];
     int dataSz = (int)sizeof(data);
-    
+
+    /* TODO: Support arguments */
+    (void)argc;
+    (void)argv;
+
     wolfSSL_Init();
 
     /* log setup */
@@ -85,3 +90,10 @@ exit:
 
     return ret;
 }
+
+#ifndef NO_MAIN_DRIVER
+int main(int argc, char* argv[])
+{
+    return https_client_test(argc, argv);
+}
+#endif

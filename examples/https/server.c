@@ -24,6 +24,8 @@
 #include "wolfkeymgr/mod_etsi.h"
 #include "examples/test_config.h"
 
+#include <signal.h>        /* signal */
+
 static volatile int mStop = 0;
 static WKM_SOCKET_T listenFd = WKM_SOCKET_INVALID;
 
@@ -38,7 +40,7 @@ static void sig_handler(const int sig)
     mStop = 1;
 }
 
-int main(int argc, char* argv[])
+int https_server_test(int argc, char** argv)
 {
     int ret;
     WOLFSSL_CTX* ctx;
@@ -51,6 +53,10 @@ int main(int argc, char* argv[])
     SOCKADDR_IN_T clientAddr;
 
     signal(SIGINT, sig_handler);
+
+    /* TODO: Support arguments */
+    (void)argc;
+    (void)argv;
 
     printf("HTTPS Server: Port %d\n", HTTPS_TEST_PORT);
 
@@ -78,20 +84,20 @@ int main(int argc, char* argv[])
         ret = etsi_client_get(ctx);
         if (ret != 0) {
             mStop = 1;
-            goto exit;
+            goto end_sess;
         }
 
         ret = wolfTlsAccept(ctx, listenFd, &ssl, &clientAddr,
             HTTPS_TEST_TIMEOUT_SEC);
         if (ret == WOLFKM_BAD_TIMEOUT) continue;
-        if (ret != 0) goto exit;
+        if (ret != 0) goto end_sess;
         
         printf("TLS Accept %s\n", wolfSocketAddrStr(&clientAddr));
 
         /* Get HTTP request and print */
         dataSz = (int)sizeof(data);
         ret = wolfTlsRead(ssl, data, &dataSz, HTTPS_TEST_TIMEOUT_SEC);
-        if (ret < 0) goto exit;
+        if (ret < 0) goto end_sess;
         
         ret = wolfHttpServer_ParseRequest(&req, data, dataSz);
         if (ret == 0) {
@@ -112,7 +118,7 @@ int main(int argc, char* argv[])
             ret = wolfTlsWrite(ssl, data, dataSz);
         }
 
-exit:
+end_sess:
 
         /* Done - send TLS shutdown message */
         if (ssl) {
@@ -125,6 +131,7 @@ exit:
         }
     } while (mStop == 0);
 
+exit:
     if (listenFd != WKM_SOCKET_INVALID)
         wolfSocketClose(listenFd);
     if (ctx)
@@ -169,7 +176,7 @@ static int etsi_client_get(WOLFSSL_CTX* ctx)
             }
         }
         else {
-            ret = MEMORY_E;
+            ret = WOLFKM_BAD_MEMORY;
         }
     }
     if (gEtsiClient) {
@@ -196,3 +203,10 @@ static int etsi_client_get(WOLFSSL_CTX* ctx)
     }
     return ret;
 }
+
+#ifndef NO_MAIN_DRIVER
+int main(int argc, char* argv[])
+{
+    return https_server_test(argc, argv);
+}
+#endif

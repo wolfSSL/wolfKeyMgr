@@ -43,19 +43,62 @@
 #include <wolfssl/wolfcrypt/random.h>
 
 
-/* string constants */
+/* default program constants */
+#ifndef WOLFKM_DEFAULT_LOG_NAME
 #define WOLFKM_DEFAULT_LOG_NAME     NULL
+#endif
+#ifndef WOLFKM_DEFAULT_PID
 #define WOLFKM_DEFAULT_PID          "./wolfkeymgr.pid"
+#endif
+#ifndef WOLFKM_ETSISVC_PORT
+#define WOLFKM_ETSISVC_PORT         "8119"
+#endif
+#ifndef WOLFKM_ETSISVC_KEY_PASSWORD
+#define WOLFKM_ETSISVC_KEY_PASSWORD "wolfssl"
+#endif
+#ifndef WOLFKM_ETSISVC_CA
+#define WOLFKM_ETSISVC_CA           "./certs/ca-cert.pem"
+#endif
+#ifndef WOLFKM_ETSISVC_KEY
+#define WOLFKM_ETSISVC_KEY          "./certs/server-rsa-key.pem"
+#endif
+#ifndef WOLFKM_ETSISVC_CERT
+#define WOLFKM_ETSISVC_CERT         "./certs/server-rsa-cert.pem"
+#endif
+#ifndef WOLFKM_ETSISVC_VAULT
+#define WOLFKM_ETSISVC_VAULT        "./wolfkeymgr.vault"
+#endif
 
+#ifndef WOLFKM_DEFAULT_FILES
+#define WOLFKM_DEFAULT_FILES        1024      /* default max open files */
+#endif
+#ifndef WOLFKM_DEFAULT_TIMEOUT
+#define WOLFKM_DEFAULT_TIMEOUT      60        /* default timeout in seconds */
+#endif
+#ifndef WOLFKM_KEY_RENEW_TIMEOUT
+#define WOLFKM_KEY_RENEW_TIMEOUT    (60*60)   /* key renewal timeout (1 hour) */
+#endif
+#ifndef WOLFKM_KEY_RENEW_MAX_USES
+#define WOLFKM_KEY_RENEW_MAX_USES   100       /* key renewal max uses */
+#endif
+#ifndef WOLFKM_CONN_ITEMS
+#define WOLFKM_CONN_ITEMS           1024      /* new conn item pool size */
+#endif
+#ifndef WOLFKM_BACKOFF_TIME
+#define WOLFKM_BACKOFF_TIME         10000     /* in microseconds */
+#endif
 
-/* program constants */
-enum ProgramConstMisc {
-    WOLFKM_DEFAULT_FILES       =  1024,        /* default max open files */
-    WOLFKM_DEFAULT_TIMEOUT     =    60,        /* default timeout in seconds */
-    WOLFKM_KEY_RENEW_TIMEOUT   =  3600,        /* key renewal timeout (1 hour) */
-    WOLFKM_CONN_ITEMS          =  1024,        /* new conn item pool size */
-    WOLFKM_BACKOFF_TIME        = 10000,        /* in microseconds */
-};
-
+/* Determine default ETSI key type */
+#ifndef WOLFKM_ETSISVC_DEF_KEY_TYPE
+    #ifdef HAVE_ECC
+        #define WOLFKM_ETSISVC_DEF_KEY_TYPE  ETSI_KEY_TYPE_SECP256R1
+    #elif !defined(NO_DH) && defined(WOLFSSL_DH_EXTRA)
+        #define WOLFKM_ETSISVC_DEF_KEY_TYPE  ETSI_KEY_TYPE_FFDHE_2048
+    #elif defined(HAVE_CURVE25519)
+        #define WOLFKM_ETSISVC_DEF_KEY_TYPE  ETSI_KEY_TYPE_X25519
+    #elif defined(HAVE_CURVE448)
+        #define WOLFKM_ETSISVC_DEF_KEY_TYPE  ETSI_KEY_TYPE_X25519
+    #endif
+#endif
 
 #endif /* KEYMANAGER_H */

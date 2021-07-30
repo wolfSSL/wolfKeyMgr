@@ -20,6 +20,7 @@
  */
 
 #include "wolfkeymgr/mod_etsi.h"
+#include "examples/etsi_test/etsi_test.h"
 #include "examples/test_config.h"
 
 #define WOLFKM_ETST_CLIENT_DEF_REQUESTS     1       /* per thread */
@@ -33,22 +34,32 @@
 #define EXIT_FAILURE 1
 #endif
 
+#define REQ_TYPE_GET  1
+#define REQ_TYPE_PUSH 2
+#define REQ_TYPE_FIND 3
 
 typedef struct WorkThreadInfo {
     const char* host;
     int requests;
     int timeoutSec;
-    int useGet;
+    int requestType;
+    const char* findName; /* contextStr */
+    const char* fingerprint;
     char* saveResp;
     word16 port;
     const char* keyFile;
     const char* keyPass;
     const char* clientCertFile;
     const char* caFile;
-    EtsiKey key;
     EtsiKeyType keyType;
-    WOLFSSL_CTX* ctx; /* test ctx loading static ephemeral key */
 } WorkThreadInfo;
+
+typedef struct WorkThreadCtx {
+    WorkThreadInfo* info; /* shared */
+
+    EtsiKey key;
+    WOLFSSL_CTX* ctx;
+} WorkThreadCtx;
 
 
 /* for error response in errorMode, 0 on success */
@@ -62,50 +73,73 @@ static int DoErrorMode(void)
 static int keyCb(EtsiClientCtx* client, EtsiKey* key, void* userCtx)
 {
     int ret = 0;
-    WorkThreadInfo* info = (WorkThreadInfo*)userCtx;
-    int keyAlgo = wolfEtsiKeyGetPkType(key);
+    WorkThreadCtx* tctx = (WorkThreadCtx*)userCtx;
+    WorkThreadInfo* info = tctx->info;
 
     /* test use-case setting static ephemeral key */
-    if (info->ctx) {
-        ret = wolfSSL_CTX_set_ephemeral_key(info->ctx,
-            keyAlgo, key->response, key->responseSz,
+    if (tctx->ctx) {
+    #ifdef WOLFSSL_STATIC_EPHEMERAL
+        int keyAlgo = wolfEtsiKeyGetPkType(key);
+
+        ret = wolfSSL_CTX_set_ephemeral_key(tctx->ctx,
+            keyAlgo, (char*)key->response, key->responseSz,
             WOLFSSL_FILETYPE_ASN1);
+    #endif
     }
-    wolfEtsiKeyPrint(key);
-    if (info->saveResp != NULL) {
-        wolfSaveFile(info->saveResp, (byte*)key->response, key->responseSz);
+    if (ret == 0) {
+        wolfEtsiKeyPrint(key);
+
+        if (info->saveResp != NULL) {
+            wolfSaveFile(info->saveResp, (byte*)key->response, key->responseSz);
+        }
     }
+    else {
+        XLOG(WOLFKM_LOG_INFO, "Key Error: %s (%d)\n", wolfKeyMgr_GetError(ret), ret);
+    }
+
+    (void)client;
 
     return ret; /* non-zero will close client */
 }
 
 /* ETSI Asymmetric Key Request */
-static int DoKeyRequest(EtsiClientCtx* client, WorkThreadInfo* info)
+static int DoKeyRequest(EtsiClientCtx* client, WorkThreadCtx* tctx)
 {
-    int ret;
+    int ret = WOLFKM_BAD_ARGS;
+    WorkThreadInfo* info = tctx->info;
 
     /* push: will wait for server to push new keys */
     /* get:  will ask server for key and return */
-    if (info->useGet) {
-        ret = wolfEtsiClientGet(client, &info->key, info->keyType, NULL, NULL,
+    if (info->requestType == REQ_TYPE_GET) {
+        ret = wolfEtsiClientGet(client, &tctx->key, info->keyType, NULL, NULL,
             info->timeoutSec);
         /* positive return means new key returned */
         /* zero means, same key is used */
         /* negative means error */
         if (ret > 0) {
             /* use same "push" callback to test key use / print */
-            keyCb(client, &info->key, info);
+            keyCb(client, &tctx->key, tctx);
             ret = 0;
         }
         else if (ret == 0) {
             XLOG(WOLFKM_LOG_INFO, "ETSI Key Cached (valid for %lu sec)\n",
-                info->key.expires - wolfGetCurrentTimeT());
+                tctx->key.expires - wolfGetCurrentTimeT());
             sleep(1); /* wait 1 second */
         }
     }
-    else {
+    else if (info->requestType == REQ_TYPE_PUSH) {
         /* blocking call and new keys from server will issue callback */
-        ret = wolfEtsiClientPush(client, info->keyType, NULL, NULL, keyCb, info);
+        ret = wolfEtsiClientPush(client, info->keyType, NULL, NULL, keyCb, tctx);
+    }
+    else if (info->requestType == REQ_TYPE_FIND) {
+        /* find key from server  call and new keys from server will issue callback */
+        ret = wolfEtsiClientFind(client, &tctx->key, info->keyType,
+            info->fingerprint, info->findName, info->timeoutSec);
+        if (ret > 0) {
+            /* use same "push" callback to test key use / print */
+            keyCb(client, &tctx->key, tctx);
+            ret = 0;
+        }
     }
 
     if (ret != 0) {
@@ -119,7 +153,9 @@ static void* DoRequests(void* arg)
 {
     int i;
     int ret = -1;
-    WorkThreadInfo* info = (WorkThreadInfo*)arg;
+    WorkThreadCtx* tctx = (WorkThreadCtx*)arg;
+    WorkThreadInfo* info = (WorkThreadInfo*)tctx->info;
+
     EtsiClientCtx* client = wolfEtsiClientNew();
     if (client == NULL) {
         XLOG(WOLFKM_LOG_ERROR, "Error creating ETSI client %d!\n", ret);
@@ -138,18 +174,18 @@ static void* DoRequests(void* arg)
         info->timeoutSec);
     if (ret == 0) {
         /* setup test CTX to demonstrate loading static ephemeral */
-        info->ctx = wolfSSL_CTX_new(wolfTLSv1_3_server_method());
+        tctx->ctx = wolfSSL_CTX_new(wolfTLSv1_3_server_method());
 
         for (i = 0; i < info->requests; i++) {
-            ret = DoKeyRequest(client, info);
+            ret = DoKeyRequest(client, tctx);
             if (ret != 0) {
                 XLOG(WOLFKM_LOG_ERROR, "DoKeyRequest failed: %d\n", ret);
                 break;
             }
         }
 
-        wolfSSL_CTX_free(info->ctx);
-        info->ctx = NULL;
+        wolfSSL_CTX_free(tctx->ctx);
+        tctx->ctx = NULL;
     }
 
     wolfEtsiClientFree(client);
@@ -180,14 +216,15 @@ static void Usage(void)
     printf("-A <pem>    TLS CA Certificate, default %s\n", ETSI_TEST_CLIENT_CA);
     printf("-K <keyt>   Key Type: SECP256R1, FFDHE_2048, X25519 or X448 (default %s)\n",
         wolfEtsiKeyGetTypeStr(ETSI_TEST_KEY_TYPE));
+    printf("-F <fprint> Fingerprint used for multiple servers (first 80-bit of pkey hash as hex string)\n");
+    printf("-n <name>   Find key using public key name (hex string)\n");
 }
 
-int main(int argc, char** argv)
+int etsi_test(int argc, char** argv)
 {
     int         ch, i;
     int         ret;
     int         errorMode = 0;
-    pthread_t*  tids;          /* our threads */
     int         poolSize = 0;  /* number of threads */
     enum log_level_t logLevel = WOLFKM_DEFAULT_LOG_LEVEL;
     WorkThreadInfo info;
@@ -201,11 +238,11 @@ int main(int argc, char** argv)
     info.keyPass = ETSI_TEST_CLIENT_PASS;
     info.clientCertFile = ETSI_TEST_CLIENT_CERT;
     info.caFile = ETSI_TEST_CLIENT_CA;
-    info.useGet = 1;
+    info.requestType = REQ_TYPE_GET;
     info.keyType = ETSI_TEST_KEY_TYPE;
 
     /* argument processing */
-    while ((ch = getopt(argc, argv, "?eh:p:t:l:r:f:gus:k:w:c:A:K:")) != -1) {
+    while ((ch = getopt(argc, argv, "?eh:p:t:l:r:f:gus:k:w:c:A:K:F:n:")) != -1) {
         switch (ch) {
             case '?' :
                 Usage();
@@ -239,7 +276,7 @@ int main(int argc, char** argv)
                 /* keeping -g GET option for backwards compatibility (on by default) */
                 break;
             case 'u':
-                info.useGet = 0;
+                info.requestType = REQ_TYPE_PUSH;
                 break;
             case 's' :
                 info.timeoutSec = atoi(optarg);
@@ -270,6 +307,16 @@ int main(int argc, char** argv)
                 }
                 break;
             }
+            case 'F':
+                /* optional ID for server on key GET / PUT */
+                /* sha256 hash of public key - 10 bytes (80 bits) as hex string */
+                info.fingerprint = optarg;
+                break;
+            case 'n':
+                /* Find key based on first 64 bytes of public key as hex string */
+                info.requestType = REQ_TYPE_FIND;
+                info.findName = optarg;
+                break;
             default:
                 Usage();
                 exit(EX_USAGE);
@@ -286,21 +333,34 @@ int main(int argc, char** argv)
     wolfEtsiClientInit();
 
     if (poolSize == 0) {
-        DoRequests(&info);
+        WorkThreadCtx tctx;
+        memset(&tctx, 0, sizeof(tctx));
+        tctx.info = &info; /* shared info */
+        DoRequests(&tctx);
     }
     else {
         /* stress testing with a thread pool */
+        pthread_t* tids;
+        WorkThreadCtx* tctx;
 
         /* thread id holder */
-        tids = calloc(poolSize, sizeof(pthread_t));
+        tids = (pthread_t*)calloc(poolSize, sizeof(pthread_t));
         if (tids == NULL) {
             XLOG(WOLFKM_LOG_ERROR, "calloc tids failed\n");
             exit(EXIT_FAILURE);
         }
 
+        tctx = (WorkThreadCtx*)calloc(poolSize, sizeof(WorkThreadCtx));
+        if (tctx == NULL) {
+            XLOG(WOLFKM_LOG_ERROR, "calloc tctx failed\n");
+            free(tids);
+            exit(EXIT_FAILURE);
+        }
+
         /* create workers */
         for (i = 0; i < poolSize; i++) {
-            if (pthread_create(&tids[i], NULL, DoRequests, &info) != 0){
+            tctx[i].info = &info; /* shared info */
+            if (pthread_create(&tids[i], NULL, DoRequests, &tctx[i]) != 0){
                 XLOG(WOLFKM_LOG_ERROR, "pthread_create failed\n");
                 exit(EXIT_FAILURE);
             }
@@ -313,8 +373,16 @@ int main(int argc, char** argv)
         }
 
         free(tids);
+        free(tctx);
     }
     wolfEtsiClientCleanup();
 
     return 0;
 }
+
+#ifndef NO_MAIN_DRIVER
+int main(int argc, char** argv)
+{
+    return etsi_test(argc, argv);
+}
+#endif

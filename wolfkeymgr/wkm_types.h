@@ -39,28 +39,32 @@
 #include <wolfssl/wolfcrypt/types.h>
 
 #ifdef HAVE_ECC
-#include <wolfssl/wolfcrypt/ecc.h>
+    #include <wolfssl/wolfcrypt/ecc.h>
 #endif
 #ifndef NO_DH
-#include <wolfssl/wolfcrypt/dh.h>
+    #include <wolfssl/wolfcrypt/dh.h>
     #ifndef WOLFSSL_DH_EXTRA
         #error DH requires WOLFSSL_DH_EXTRA for DHE key export/import support
     #endif
 #endif
 #ifdef HAVE_CURVE25519
-#include <wolfssl/wolfcrypt/curve25519.h>
+    #include <wolfssl/wolfcrypt/curve25519.h>
 #endif
 #ifdef HAVE_CURVE448
-#include <wolfssl/wolfcrypt/curve448.h>
+    #include <wolfssl/wolfcrypt/curve448.h>
 #endif
 
-#ifdef WOLFKM_ETSI_SERVICE
-    #if !defined(HAVE_ECC) && defined(NO_DH) && !defined(HAVE_CURVE25519) && \
-        !defined(HAVE_CURVE448)
-        #error This service requires ECC, DH, X25519 or X448 support
-    #endif
+#if !defined(HAVE_ECC) && defined(NO_DH) && !defined(HAVE_CURVE25519) && \
+    !defined(HAVE_CURVE448)
+    #error This service requires ECC, DH, X25519 or X448 support
 #endif
 
+#ifndef MAX_REQUEST_SIZE
+#define MAX_REQUEST_SIZE  (1*1024)
+#endif
+#ifndef MAX_RESPONSE_SIZE
+#define MAX_RESPONSE_SIZE (2*1024)
+#endif
 
 /* key manager errors */
 enum  {

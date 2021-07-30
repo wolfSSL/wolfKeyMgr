@@ -23,7 +23,11 @@
 
 #include "wolfkeymgr/options.h"
 #include "wolfkeymgr/mod_etsi.h"
+#include "examples/middlebox/decrypt.h"
 #include "examples/test_config.h"
+
+#include <stdio.h>         /* printf */
+#include <stdlib.h>        /* EXIT_SUCCESS */
 
 #ifdef WOLFKM_SNIFFER
 
@@ -35,8 +39,6 @@
 #endif
 
 #include <pcap/pcap.h>     /* pcap stuff */
-#include <stdio.h>         /* printf */
-#include <stdlib.h>        /* EXIT_SUCCESS */
 #include <string.h>        /* strcmp */
 #include <signal.h>        /* signal */
 #include <ctype.h>         /* isprint */
@@ -56,71 +58,10 @@ enum {
 };
 
 
-/* A TLS record can be 16k and change. The chain is broken up into 2K chunks.
- * This covers the TLS record, plus a chunk for TCP/IP headers. */
-#ifndef CHAIN_INPUT_CHUNK_SIZE
-    #define CHAIN_INPUT_CHUNK_SIZE 2048
-#elif (CHAIN_INPUT_CHUNK_SIZE < 256)
-    #undef CHAIN_INPUT_CHUNK_SIZE
-    #define CHAIN_INPUT_CHUNK_SIZE 256
-#elif (CHAIN_INPUT_CHUNK_SIZE > 16384)
-    #undef CHAIN_INPUT_CHUNK_SIZE
-    #define CHAIN_INPUT_CHUNK_SIZE 16384
-#endif
-#define CHAIN_INPUT_COUNT ((16384 / CHAIN_INPUT_CHUNK_SIZE) + 1)
 
-
-#ifndef STORE_DATA_BLOCK_SZ
-    #define STORE_DATA_BLOCK_SZ 1024
-#endif
-
-
-#define DEFAULT_SERVER_EPH_KEY_ECC "../../certs/statickeys/ecc-secp256r1.pem"
-#define DEFAULT_SERVER_EPH_KEY_DH  "../../certs/statickeys/dh-ffdhe2048.pem"
-#ifndef DEFAULT_SERVER_EPH_KEY
-    #if defined(HAVE_ECC) && !defined(NO_ECC_SECP) && \
-        (!defined(NO_ECC256) || defined(HAVE_ALL_CURVES))
-        #if !defined(NO_DH)
-            #define DEFAULT_SERVER_EPH_KEY DEFAULT_SERVER_EPH_KEY_ECC "," DEFAULT_SERVER_EPH_KEY_DH
-        #else
-            #define DEFAULT_SERVER_EPH_KEY DEFAULT_SERVER_EPH_KEY_ECC
-        #endif
-    #elif !defined(NO_DH)
-        #define DEFAULT_SERVER_EPH_KEY DEFAULT_SERVER_EPH_KEY_DH
-    #endif
-#endif
-
-#define DEFAULT_SERVER_KEY_RSA "../../certs/server-key.pem"
-#define DEFAULT_SERVER_KEY_ECC "../../certs/ecc-key.pem"
-#ifndef DEFAULT_SERVER_KEY
-    #ifndef NO_RSA
-        #define DEFAULT_SERVER_KEY DEFAULT_SERVER_KEY_RSA
-    #elif defined(HAVE_ECC)
-        #define DEFAULT_SERVER_KEY DEFAULT_SERVER_KEY_ECC
-    #endif
-#endif
-     
-
-#ifdef WOLFSSL_SNIFFER_WATCH
-static const byte rsaHash[] = {
-    0x4e, 0xa8, 0x55, 0x02, 0xe1, 0x84, 0x7e, 0xe1, 
-    0xb5, 0x97, 0xd2, 0xf0, 0x92, 0x3a, 0xfd, 0x0d, 
-    0x98, 0x26, 0x06, 0x85, 0x8d, 0xa4, 0xc7, 0x35, 
-    0xd4, 0x74, 0x8f, 0xd0, 0xe7, 0xa8, 0x27, 0xaa
-};
-static const byte eccHash[] = {
-    0x80, 0x3d, 0xff, 0xca, 0x2e, 0x20, 0xd9, 0xdf, 
-    0xfe, 0x64, 0x4e, 0x25, 0x6a, 0xee, 0xee, 0x60, 
-    0xc1, 0x48, 0x7b, 0xff, 0xa0, 0xfb, 0xeb, 0xac, 
-    0xe2, 0xa4, 0xdd, 0xb5, 0x18, 0x38, 0x78, 0x38
-};
-#endif
-
-
-pcap_t* pcap = NULL;
-pcap_if_t* alldevs = NULL;
-
-
+static pcap_t* pcap = NULL;
+static pcap_if_t* alldevs = NULL;
+static int isOfflinePcap = 0;
 
 static EtsiClientCtx* gEtsiClient;
 
@@ -133,10 +74,9 @@ static void etsi_client_cleanup(void)
         wolfEtsiClientCleanup();
     }
 }
-
-static int etsi_client_get(char* urlStr, EtsiKey* key)
+static int etsi_client_connect(char* urlStr)
 {
-    int ret = -1;
+    int ret = 0;
     static HttpUrl url;
     
     /* setup key manager connection */
@@ -164,10 +104,18 @@ static int etsi_client_get(char* urlStr, EtsiKey* key)
             }
         }
         else {
-            ret = MEMORY_E;
+            ret = WOLFKM_BAD_MEMORY;
         }
     }
-    if (gEtsiClient && key) {
+    return ret;
+}
+
+static int etsi_client_get(char* urlStr, EtsiKey* key)
+{
+    int ret;
+    
+    ret = etsi_client_connect(urlStr);
+    if (ret == 0 && key) {
         ret = wolfEtsiClientGet(gEtsiClient, key, ETSI_TEST_KEY_TYPE, 
             NULL, NULL, ETSI_TEST_TIMEOUT_MS);
         /* positive return means new key returned */
@@ -175,8 +123,6 @@ static int etsi_client_get(char* urlStr, EtsiKey* key)
         /* negative means error */
         if (ret < 0) {
             printf("Error getting ETSI static ephemeral key! %d\n", ret);
-
-            /* cleanup */
             etsi_client_cleanup();
         }
         else {
@@ -188,6 +134,72 @@ static int etsi_client_get(char* urlStr, EtsiKey* key)
     return ret;
 }
 
+#ifdef WOLFSSL_SNIFFER_KEY_CALLBACK
+static int etsi_client_find(char* urlStr, EtsiKey* key, int namedGroup, 
+    const byte* pub, word32 pubSz)
+{
+    int ret;
+    
+    ret = etsi_client_connect(urlStr);
+    if (ret == 0 && key) {
+        char name[ETSI_MAX_KEY_NAME_STR];
+        word32 nameSz = (word32)sizeof(name);
+        ret = wolfEtsiGetPubKeyName((EtsiKeyType)namedGroup, pub, pubSz,
+            name, &nameSz);
+        if (ret == 0) {
+            ret = wolfEtsiClientFind(gEtsiClient, key, namedGroup, name,
+                NULL, ETSI_TEST_TIMEOUT_MS);
+        }
+        if (ret < 0) {
+            printf("Error finding ETSI static ephemeral key! %d\n", ret);
+            etsi_client_cleanup();
+        }
+        else {
+            printf("Found ETSI static ephemeral key (%d bytes)\n",
+                key->responseSz);
+            wolfEtsiKeyPrint(key);
+        }
+    }
+    return ret;
+}
+
+static int myKeyCb(void* vSniffer, int namedGroup,
+    const unsigned char* srvPub, unsigned int srvPubSz,
+    const unsigned char* cliPub, unsigned int cliPubSz,
+    DerBuffer* privKey, void* cbCtx, char* error)
+{
+    int ret;
+    static EtsiKey key;
+
+    if (!isOfflinePcap) {
+        /* decrypt is real-time, don't use find */
+        return 0;
+    }
+
+    ret = etsi_client_find(NULL, &key, namedGroup, srvPub, srvPubSz);
+    if (ret >= 0) {
+        byte* keyBuf = NULL;
+        word32 keySz = 0;
+        wolfEtsiKeyGetPtr(&key, &keyBuf, &keySz);
+
+        if (privKey->length != keySz) {
+            void* heap = privKey->heap;
+            wc_FreeDer(&privKey);
+            wc_AllocDer(&privKey, keySz, PRIVATEKEY_TYPE, heap);
+        }
+        memcpy(privKey->buffer, keyBuf, keySz);
+        ret = 0; /* mark success */
+    }
+
+    (void)vSniffer;
+    (void)cliPub;
+    (void)cliPubSz;
+    (void)cbCtx;
+    (void)error;
+
+    return ret;
+}
+#endif
 
 static void FreeAll(void)
 {
@@ -254,14 +266,12 @@ static void sig_handler(const int sig)
         exit(EXIT_SUCCESS);
 }
 
-
 static void err_sys(const char* msg)
 {
     fprintf(stderr, "%s\n", msg);
     if (msg)
         exit(EXIT_FAILURE);
 }
-
 
 #ifdef _WIN32
     #define SNPRINTF _snprintf
@@ -287,91 +297,6 @@ static const char* ip6tos(const struct in6_addr* addr)
 }
 
 
-#if defined(WOLFSSL_SNIFFER_STORE_DATA_CB) || defined(WOLFSSL_SNIFFER_CHAIN_INPUT)
-static inline unsigned int min(unsigned int a, unsigned int b)
-{
-    return a > b ? b : a;
-}
-#endif
-
-
-#ifdef WOLFSSL_SNIFFER_WATCH
-static int myWatchCb(void* vSniffer,
-        const unsigned char* certHash, unsigned int certHashSz,
-        const unsigned char* certChain, unsigned int certChainSz,
-        void* ctx, char* error)
-{
-    const char* certName = NULL;
-
-    (void)certChain;
-    (void)certChainSz;
-    (void)ctx;
-
-    if (certHashSz == sizeof(rsaHash) &&
-            memcmp(certHash, rsaHash, certHashSz) == 0) {
-        certName = DEFAULT_SERVER_KEY_RSA;
-    }
-    else if (certHashSz == sizeof(eccHash) &&
-            memcmp(certHash, eccHash, certHashSz) == 0) {
-        certName = DEFAULT_SERVER_KEY_ECC;
-    }
-    else {
-        int ret;
-        EtsiKey key;
-        memset(&key, 0, sizeof(key));
-        ret = etsi_client_get(NULL, &key);
-        if (ret >= 0) {
-            byte* keyBuf = NULL;
-            word32 keySz = 0;
-            wolfEtsiKeyGet(&key, &keyBuf, &keySz);
-            ret = ssl_SetWatchKey_buffer(vSniffer, keyBuf, keySz, FILETYPE_DER, error);
-        }
-        return ret;
-    }
-
-    if (certName == NULL) {
-        /* do not return error if key is not loaded */
-        printf("Warning: No matching key found for cert hash\n");
-        return 0;
-    }
-
-    return ssl_SetWatchKey_file(vSniffer, certName, FILETYPE_PEM, NULL, error);
-}
-#endif /* WOLFSSL_SNIFFER_WATCH */
-
-
-#ifdef WOLFSSL_SNIFFER_STORE_DATA_CB
-static int myStoreDataCb(const unsigned char* decryptBuf,
-        unsigned int decryptBufSz, unsigned int decryptBufOffset, void* ctx)
-{
-    byte** data = (byte**)ctx;
-    unsigned int qty;
-
-    if (data == NULL)
-        return -1;
-
-    if (decryptBufSz < decryptBufOffset)
-        return -1;
-
-    qty = min(decryptBufSz - decryptBufOffset, STORE_DATA_BLOCK_SZ);
-
-    if (*data == NULL) {
-        byte* tmpData;
-        tmpData = (byte*)realloc(*data, decryptBufSz + 1);
-        if (tmpData == NULL) {
-            free(*data);
-            *data = NULL;
-            return -1;
-        }
-        *data = tmpData;
-    }
-
-    memcpy(*data + decryptBufOffset, decryptBuf + decryptBufOffset, qty);
-
-    return qty;
-}
-#endif /* WOLFSSL_SNIFFER_STORE_DATA_CB */
-
 /* try and load as both static ephemeral and private key */
 /* only fail if no key is loaded */
 /* Allow comma seperated list of files */
@@ -396,7 +321,7 @@ static int load_key(const char* name, const char* server, int port,
             else {
                 byte* keyBuf = NULL;
                 word32 keySz = 0;
-                wolfEtsiKeyGet(&key, &keyBuf, &keySz);
+                wolfEtsiKeyGetPtr(&key, &keyBuf, &keySz);
             #ifdef HAVE_SNI
                 ret = ssl_SetNamedEphemeralKeyBuffer(name, server, port,
                     (char*)keyBuf, keySz, FILETYPE_DER, passwd, err);
@@ -436,18 +361,26 @@ static int load_key(const char* name, const char* server, int port,
     return ret;
 }
 
-int main(int argc, char** argv)
+static void TrimNewLine(char* str)
+{
+    word32 strSz = 0;
+    if (str)
+        strSz = (word32)strlen(str);
+    if (strSz > 0 && (str[strSz-1] == '\n' || str[strSz-1] == '\r'))
+        str[strSz-1] = '\0';
+}
+
+int middlebox_decrypt_test(int argc, char** argv)
 {
     int          ret = 0;
     int          hadBadPacket = 0;
     int          inum = 0;
-    int          port = 0, portDef;
-    int          saveFile = 0;
+    int          port = 0, portDef = HTTPS_TEST_PORT;
     int          i = 0, defDev = 0;
     int          frame = ETHER_IF_FRAME_LEN;
     char         err[PCAP_ERRBUF_SIZE];
     char         filter[32];
-    const char  *keyFilesSrc = NULL;
+    const char  *keyFilesSrc = "https://" ETSI_TEST_HOST ":" ETSI_TEST_PORT_STR;
     char         keyFilesBuf[MAX_FILENAME_SZ];
     char         keyFilesUser[MAX_FILENAME_SZ];
     const char  *server = NULL;
@@ -455,10 +388,6 @@ int main(int argc, char** argv)
     struct       bpf_program fp;
     pcap_if_t   *d;
     pcap_addr_t *a;
-#ifdef WOLFSSL_SNIFFER_CHAIN_INPUT
-    struct iovec chain[CHAIN_INPUT_COUNT];
-    int          chainSz;
-#endif
 
     signal(SIGINT, sig_handler);
 
@@ -467,16 +396,13 @@ int main(int argc, char** argv)
 #endif
 #ifdef DEBUG_WOLFSSL
     /* log setup */
-    //wolfSSL_Debugging_ON();
+    wolfSSL_Debugging_ON();
     wolfKeyMgr_SetLogFile(NULL, 0, WOLFKM_LOG_DEBUG);
 #endif
     ssl_Trace("./tracefile.txt", err);
     ssl_EnableRecovery(1, -1, err);
-#ifdef WOLFSSL_SNIFFER_WATCH
-    ssl_SetWatchKeyCallback(myWatchCb, err);
-#endif
-#ifdef WOLFSSL_SNIFFER_STORE_DATA_CB
-    ssl_SetStoreDataCallback(myStoreDataCb);
+#ifdef WOLFSSL_SNIFFER_KEY_CALLBACK
+    ssl_SetKeyCallback(myKeyCb, NULL);
 #endif
 
     if (argc == 1) {
@@ -488,7 +414,7 @@ int main(int argc, char** argv)
 
         for (d = alldevs; d; d=d->next) {
             printf("%d. %s", ++i, d->name);
-            if (strcmp(d->name, "lo0") == 0) {
+            if (strcmp(d->name, "lo") == 0 || strcmp(d->name, "lo0") == 0) {
                 defDev = i;
             }
             if (d->description)
@@ -505,10 +431,13 @@ int main(int argc, char** argv)
         memset(cmdLineArg, 0, sizeof(cmdLineArg));
         if (fgets(cmdLineArg, sizeof(cmdLineArg), stdin))
             inum = atoi(cmdLineArg);
-        if (inum == 0)
+        if (inum == 0) {
+            if (defDev == 0) defDev = 1;
             inum = defDev;
-        else if (inum < 1 || inum > i)
+        }
+        if (inum < 1 || inum > i) {
             err_sys("Interface number out of range");
+        }
 
         /* Jump to the selected adapter */
         for (d = alldevs, i = 0; i < inum - 1; d = d->next, i++);
@@ -550,7 +479,6 @@ int main(int argc, char** argv)
         ret = pcap_activate(pcap);
         if (ret != 0) printf("pcap_activate failed %s\n", pcap_geterr(pcap));
 
-        portDef = HTTPS_TEST_PORT;
         printf("Enter the port to scan [default: %d]: ", portDef);
         memset(cmdLineArg, 0, sizeof(cmdLineArg));
         if (fgets(cmdLineArg, sizeof(cmdLineArg), stdin)) {
@@ -563,24 +491,24 @@ int main(int argc, char** argv)
         SNPRINTF(filter, sizeof(filter), "tcp and port %d", port);
 
         ret = pcap_compile(pcap, &fp, filter, 0, 0);
-        if (ret != 0) printf("pcap_compile failed %s\n", pcap_geterr(pcap));
+        if (ret != 0) {
+            printf("pcap_compile failed %s\n", pcap_geterr(pcap));
+            printf("Try using `sudo` permissions with middlebox/decrypt\n");
+            exit(EXIT_FAILURE);
+        }
 
         ret = pcap_setfilter(pcap, &fp);
         if (ret != 0) printf("pcap_setfilter failed %s\n", pcap_geterr(pcap));
 
-        /* optionally enter the private key to use */
-        keyFilesSrc = "https://" ETSI_TEST_HOST ":" ETSI_TEST_PORT_STR;
+        /* specify the key file or URL for ETSI key manager */
         printf("Enter the server key [default: %s]: ", keyFilesSrc);
         memset(keyFilesBuf, 0, sizeof(keyFilesBuf));
         memset(keyFilesUser, 0, sizeof(keyFilesUser));
         if (fgets(keyFilesUser, sizeof(keyFilesUser), stdin)) {
-            word32 strSz;
-            if (keyFilesUser[0] != '\r' && keyFilesUser[0] != '\n') {
+            TrimNewLine(keyFilesUser);
+            if (strlen(keyFilesUser) > 0) {
                 keyFilesSrc = keyFilesUser;
             }
-            strSz = (word32)strlen(keyFilesUser);
-            if (keyFilesUser[strSz-1] == '\n')
-                keyFilesUser[strSz-1] = '\0';
         }
         strncpy(keyFilesBuf, keyFilesSrc, sizeof(keyFilesBuf));
 
@@ -589,6 +517,7 @@ int main(int argc, char** argv)
         printf("Enter alternate SNI [default: none]: ");
         memset(cmdLineArg, 0, sizeof(cmdLineArg));
         if (fgets(cmdLineArg, sizeof(cmdLineArg), stdin)) {
+            TrimNewLine(cmdLineArg);
             if (strlen(cmdLineArg) > 0) {
                 sniName = cmdLineArg;
             }
@@ -616,8 +545,8 @@ int main(int argc, char** argv)
             }
         }
     }
-    else if (argc >= 3) {
-        saveFile = 1;
+    else if (argc >= 2) {
+        isOfflinePcap = 1;
         pcap = pcap_open_offline(argv[1], err);
         if (pcap == NULL) {
             printf("pcap_open_offline failed %s\n", err);
@@ -627,16 +556,15 @@ int main(int argc, char** argv)
             const char* passwd = NULL;
 
             /* defaults for server and port */
-            port = 443;
+            port = portDef;
             server = "127.0.0.1";
-            keyFilesSrc = argv[2];
 
+            if (argc >= 3)
+                keyFilesSrc = argv[2];
             if (argc >= 4)
                 server = argv[3];
-
             if (argc >= 5)
                 port = atoi(argv[4]);
-
             if (argc >= 6)
                 passwd = argv[5];
 
@@ -688,39 +616,9 @@ int main(int argc, char** argv)
             }
             else
                 continue;
-#ifdef WOLFSSL_SNIFFER_CHAIN_INPUT
-            {
-                unsigned int j = 0;
-                unsigned int remainder = header.caplen;
 
-                chainSz = 0;
-                do {
-                    unsigned int chunkSz;
-
-                    chunkSz = min(remainder, CHAIN_INPUT_CHUNK_SIZE);
-                    chain[chainSz].iov_base = (void*)(packet + j);
-                    chain[chainSz].iov_len = chunkSz;
-                    j += chunkSz;
-                    remainder -= chunkSz;
-                    chainSz++;
-                } while (j < header.caplen);
-            }
-#endif
-
-#if defined(WOLFSSL_SNIFFER_CHAIN_INPUT) && \
-    defined(WOLFSSL_SNIFFER_STORE_DATA_CB)
-            ret = ssl_DecodePacketWithChainSessionInfoStoreData(chain, chainSz,
-                    &data, &sslInfo, err);
-#elif defined(WOLFSSL_SNIFFER_CHAIN_INPUT)
-            (void)sslInfo;
-            ret = ssl_DecodePacketWithChain(chain, chainSz, &data, err);
-#elif defined(WOLFSSL_SNIFFER_STORE_DATA_CB)
-            ret = ssl_DecodePacketWithSessionInfoStoreData(packet,
-                    header.caplen, &data, &sslInfo, err);
-#else
             ret = ssl_DecodePacketWithSessionInfo(packet, header.caplen, &data,
                                                   &sslInfo, err);
-#endif
             if (ret < 0) {
                 printf("ssl_Decode ret = %d, %s\n", ret, err);
                 hadBadPacket = 1;
@@ -737,21 +635,25 @@ int main(int argc, char** argv)
                 ssl_FreeZeroDecodeBuffer(&data, ret, err);
             }
         }
-        else if (saveFile)
+        else if (isOfflinePcap)
             break;      /* we're done reading file */
     }
     FreeAll();
 
     return hadBadPacket ? EXIT_FAILURE : EXIT_SUCCESS;
 }
-
-#else
-/* blank build */
-#include <stdio.h>
-#include <stdlib.h>
-int main(void)
-{
-    printf("To enable sniffer use ./configure --enable-sniffer with wolfKeyMgr and wolfSSL\n");
-    return EXIT_SUCCESS;
-}
 #endif /* WOLFKM_SNIFFER */
+
+#ifndef NO_MAIN_DRIVER
+int main(int argc, char** argv)
+{
+#ifdef WOLFKM_SNIFFER
+    return middlebox_decrypt_test(argc, argv);
+#else
+    printf("To enable sniffer use ./configure --enable-sniffer with wolfKeyMgr and wolfSSL\n");
+    (void)argc;
+    (void)argv;
+    return EXIT_SUCCESS;
+#endif
+}
+#endif /* !NO_MAIN_DRIVER */

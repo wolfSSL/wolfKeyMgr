@@ -45,6 +45,7 @@ examples/https/client
 examples/https/server
 libtool
 wolfkeymgr/options.h
+tests/unit.test
 
 # Generated Cert Files
 certs/ca-*.pem
@@ -60,4 +61,9 @@ certs/server-*.pem
 certs/client-*.der
 certs/client-*.pem
 certs/serial.old
+certs/1*.pem
 tracefile.txt
+
+# test files
+vault.bin
+wolfkeymgr.vault

@@ -26,37 +26,23 @@
 extern "C" {
 #endif
 
-#define WOLFKM_ETSISVC_PORT         "8119"
-#define WOLFKM_ETSISVC_KEY_PASSWORD "wolfssl"
-#define WOLFKM_ETSISVC_CA           "./certs/ca-cert.pem"
-#define WOLFKM_ETSISVC_KEY          "./certs/server-key.pem"
-#define WOLFKM_ETSISVC_CERT         "./certs/server-cert.pem"
-
-/* Determine default ETSI key type */
-#ifndef WOLFKM_ETSISVC_DEF_KEY_TYPE
-#ifdef HAVE_ECC
-    #define WOLFKM_ETSISVC_DEF_KEY_TYPE  ETSI_KEY_TYPE_SECP256R1
-#elif !defined(NO_DH) && defined(WOLFSSL_DH_EXTRA)
-    #define WOLFKM_ETSISVC_DEF_KEY_TYPE  ETSI_KEY_TYPE_FFDHE_2048
-#elif defined(HAVE_CURVE25519)
-    #define WOLFKM_ETSISVC_DEF_KEY_TYPE  ETSI_KEY_TYPE_X25519
-#elif defined(HAVE_CURVE448)
-    #define WOLFKM_ETSISVC_DEF_KEY_TYPE  ETSI_KEY_TYPE_X25519
-#endif
-#endif
+typedef struct EtsiSvcConfig {
+    EtsiKeyType     keyTypeDef; /* default key type */
+    word32          renewSec;
+    word32          maxUseCount;
+} EtsiSvcConfig;
 
 
-WOLFKM_LOCAL SvcInfo* wolfEtsiSvc_Init(struct event_base* mainBase, int renewSec,
-    EtsiKeyType keyTypeDef);
+WOLFKM_LOCAL SvcInfo* wolfEtsiSvc_Init(const EtsiSvcConfig* config);
+WOLFKM_LOCAL int wolfEtsiSvc_Start(SvcInfo* svc, struct event_base* mainBase, const char* listenPort);
 WOLFKM_LOCAL void wolfEtsiSvc_Cleanup(SvcInfo* svc);
-
-WOLFKM_LOCAL int wolfEtsiSvc_WorkerInit(SvcInfo* svc, void** svcThreadCtx);
-WOLFKM_LOCAL void wolfEtsiSvc_WorkerFree(SvcInfo* svc, void* svcThreadCtx);
 
 WOLFKM_LOCAL int wolfEtsiSvc_DoRequest(SvcConn* conn);
 WOLFKM_LOCAL int wolfEtsiSvc_HandleTimeout(SvcConn* conn);
 WOLFKM_LOCAL int wolfEtsiSvc_DoNotify(SvcConn* conn);
 WOLFKM_LOCAL void wolfEtsiSvc_ConnClose(SvcConn* conn);
+
+WOLFKM_LOCAL int wolfEtsiSvc_SetVaultFile(SvcInfo* svc, const char* vaultFile);
 
 #ifdef __cplusplus
 }

@@ -30,6 +30,8 @@ include src/include.am
 include examples/include.am
 include scripts/include.am
 include certs/include.am
+include tests/include.am
+include docs/include.am
 
 check_SCRIPTS+= $(dist_noinst_SCRIPTS)
 

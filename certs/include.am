@@ -12,3 +12,7 @@ EXTRA_DIST += certs/server-key.pem
 EXTRA_DIST += certs/server-cert.pem
 EXTRA_DIST += certs/test-cert.pem
 EXTRA_DIST += certs/test-key.pem
+
+# RSA
+EXTRA_DIST += certs/server-rsa-key.pem
+EXTRA_DIST += certs/server-rsa-cert.pem

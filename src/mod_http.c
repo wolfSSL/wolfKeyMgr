@@ -257,7 +257,7 @@ int wolfHttpServer_EncodeResponse(int rspCode, const char* message,
     }
 
     /* append headers */
-    for (c=0; c<headerCount && remain > 0; c++) {
+    for (c=0; c<(int)headerCount && remain > 0; c++) {
         hdr = &headers[c];
 
         i = snprintf(out, remain, "%s%s\r\n", 
@@ -393,7 +393,7 @@ int wolfHttpClient_EncodeRequest(HttpMethodType type, const char* uri,
     }
 
     /* append headers */
-    for (c=0; c<headerCount && remain > 0; c++) {
+    for (c=0; c<(int)headerCount && remain > 0; c++) {
         hdr = &headers[c];
 
         i = snprintf(out, remain, "%s%s\r\n", 
@@ -424,7 +424,7 @@ void wolfHttpRequestPrint(HttpReq* req)
     XLOG(WOLFKM_LOG_DEBUG, "\tVersion: %s\n", req->version);
     XLOG(WOLFKM_LOG_DEBUG, "\tURI: %s\n",req->uri);
     XLOG(WOLFKM_LOG_DEBUG, "\tHeaders: %d\n", req->headerCount);
-    for (i=0; i<req->headerCount; i++) {
+    for (i=0; i<(int)req->headerCount; i++) {
         XLOG(WOLFKM_LOG_DEBUG, "\t\t%s: %s\n",
             wolfHttpGetHeaderStr(req->headers[i].type, NULL),
             req->headers[i].string);
@@ -441,7 +441,7 @@ void wolfHttpResponsePrint(HttpRsp* rsp)
     XLOG(WOLFKM_LOG_DEBUG, "HTTP %s\n", rsp->version);
     XLOG(WOLFKM_LOG_DEBUG, "\tCode %d: %s\n", rsp->code, rsp->message);
     XLOG(WOLFKM_LOG_DEBUG, "\tHeaders: %d\n", rsp->headerCount);
-    for (i=0; i<rsp->headerCount; i++) {
+    for (i=0; i<(int)rsp->headerCount; i++) {
         XLOG(WOLFKM_LOG_DEBUG, "\t\t%s: %s\n",
             wolfHttpGetHeaderStr(rsp->headers[i].type, NULL),
             rsp->headers[i].string);
@@ -453,8 +453,8 @@ void wolfHttpResponsePrint(HttpRsp* rsp)
 int wolfHttpUriEncode(const char *s, size_t sSz, char *enc, size_t encSz)
 {
     int idx = 0;
-    for (; idx < sSz && *s; s++){
-        if (idx + 3 > encSz)
+    for (; idx < (int)sSz && *s; s++){
+        if (idx + 3 > (int)encSz)
             return -1;
         if (*s == '*' || *s == '-' || *s == '.' || *s == '_') {
             char a = (char)(*s >> 4), b = (char)(*s & 0xff);
@@ -490,8 +490,8 @@ int wolfHttpUriDecode(const char *s, size_t sSz, char *dec, size_t decSz)
 {
     int idx = 0;
     byte a, b;
-    for (; idx < sSz && *s; s++){
-        if (idx + 1 > decSz)
+    for (; idx < (int)sSz && *s; s++){
+        if (idx + 1 > (int)decSz)
             return -1;
         if (*s == '%' &&
                 hex_to_char((char)s[1], &a) && 

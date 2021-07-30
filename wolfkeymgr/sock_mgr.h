@@ -50,7 +50,6 @@ extern "C" {
 
 /* program constants */
 #define MAX_SOCKADDR_SZ   32
-#define MAX_REQUEST_SIZE (16*1024)
 #define MAX_SERVICES      1
 
 /* program types */
@@ -85,11 +84,9 @@ struct SvcInfo {
     const char* desc;
 
     /* service callbacks */
-    initThreadFunc  initThreadCb;
     svcRequestFunc  requestCb;
     svcTimeoutFunc  timeoutCb;
     svcNotifyFunc   notifyCb;
-    freeThreadFunc  freeThreadCb;
     svcCloseFunc    closeCb;
     
     /* TLS certificate / key - As DER/ASN.1*/
@@ -99,7 +96,6 @@ struct SvcInfo {
     word32          keyBufferSz;
     word32          certBufferSz;
     word32          caBufferSz;
-    int             disableMutalAuth;
 
     /* Shared context for all threads */
     void*           svcCtx;
@@ -110,7 +106,7 @@ struct SvcInfo {
     pthread_mutex_t initLock;       /* for initCount */
     pthread_cond_t  initCond;       /* for initCount */
     EventThread*    threads;        /* worker thread pool */
-    int             threadPoolSize; /* our reference here */
+    unsigned int    threadPoolSize; /* our reference here */
     ConnItem*       freeConnItems;  /* free connection item list */
     pthread_mutex_t itemLock;       /* for freeItems */
     SvcStats        globalStats;    /* global (all threads) total stats */
@@ -143,9 +139,10 @@ struct SvcConn {
     struct bufferevent* stream;       /* buffered stream */
     WOLFSSL*            ssl;          /* ssl object */
     word32              requestSz;    /* bytes in request buffer */
-    byte                request[MAX_REQUEST_SIZE]; /* full input request */
+    byte                request[MAX_REQUEST_SIZE];   /* full input request */
+    word32              responseSz;   /* bytes in response buffer */
+    byte                response[MAX_RESPONSE_SIZE]; /* full response */
     SvcInfo*            svc;
-    void*               svcThreadCtx; /* context for the thread */
     void*               svcConnCtx;   /* context for the connection specific to the service */
     double              start;        /* response processing time start */
     EventThread*        me;
@@ -168,7 +165,6 @@ struct EventThread {
     int                notifyRecv;     /* receiving end of notification pipe */
     int                notifySend;     /* sending end of notification pipe */
     SvcInfo*           svc;
-    void*              svcThreadCtx;
     SvcConnList        freeSvcConns;   /* free connection list */
     SvcConnList        activeSvcConns; /* active connection list */
 };
@@ -183,7 +179,7 @@ WOLFKM_LOCAL void wolfKeyMgr_ShowStats(SvcInfo* svc);
 WOLFKM_LOCAL FILE* wolfKeyMgr_GetPidFile(const char* pidFile, pid_t pid);
 WOLFKM_LOCAL void wolfKeyMgr_SetTimeout(SvcInfo* svc, word32 timeoutSec);
 
-WOLFKM_LOCAL int wolfKeyMgr_AddListeners(SvcInfo* svc, int af_v, char* listenPort, struct event_base* mainBase);
+WOLFKM_LOCAL int wolfKeyMgr_AddListeners(SvcInfo* svc, int af_v, const char* listenPort, struct event_base* mainBase);
 WOLFKM_LOCAL int wolfKeyMgr_ServiceInit(SvcInfo* svc, int numThreads);
 WOLFKM_LOCAL void wolfKeyMgr_ServiceCleanup(SvcInfo* svc);
 WOLFKM_LOCAL void wolfKeyMgr_FreeListeners(void);

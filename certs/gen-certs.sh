@@ -53,6 +53,7 @@ openssl ca -config ./certs/ca-ecc.cnf -extensions usr_cert -days 3650 -notext -m
 	-passin pass:'wolfssl' -in ./certs/client-cert.csr -out ./certs/client-cert.pem -batch
 rm ./certs/client-cert.csr
 
+# Server Key
 if [ ! -f ./certs/server-key.pem ]; then
 	echo "Creating Server Key (SECP256R1)"
     openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 -topk8 -v2 aes-128-cbc -outform pem -out ./certs/server-key.pem
@@ -66,6 +67,21 @@ openssl req -config ./certs/ca-ecc.cnf -sha256 -new -key ./certs/server-key.pem 
 openssl ca -config ./certs/ca-ecc.cnf -extensions server_cert -days 3650 -notext -md sha256 \
 	-passin pass:'wolfssl' -in ./certs/server-cert.csr -out ./certs/server-cert.pem -batch
 rm ./certs/server-cert.csr
+
+# Server RSA Key
+if [ ! -f ./certs/server-rsa-key.pem ]; then
+	echo "Creating Server Key (RSA2048)"
+    openssl genrsa -out ./certs/server-rsa-key.pem -passout pass:'wolfssl' -aes128 2048
+fi
+
+# Server RSA Cert
+echo "Creating signed RSA Server certificate"
+openssl req -config ./certs/ca-ecc.cnf -sha256 -new -key ./certs/server-rsa-key.pem -passin pass:'wolfssl' \
+	-out ./certs/server-rsa-cert.csr \
+	-subj "/C=US/ST=Washington/L=Seattle/O=Eliptic/OU=RSA/CN=www.wolfssl.com/emailAddress=info@wolfssl.com/"
+openssl ca -config ./certs/ca-ecc.cnf -extensions server_cert -days 3650 -notext -md sha256 \
+	-passin pass:'wolfssl' -in ./certs/server-rsa-cert.csr -out ./certs/server-rsa-cert.pem -batch
+rm ./certs/server-rsa-cert.csr
 
 
 # Script to generate a self-signed TLS server certificate for Apache

@@ -4,7 +4,7 @@
 
 
 lib_LTLIBRARIES += src/libwolfkeymgr.la
-src_libwolfkeymgr_la_SOURCES  = src/mod_http.c src/mod_etsi.c src/mod_socket.c src/mod_tls.c src/wkm_utils.c
+src_libwolfkeymgr_la_SOURCES  = src/mod_http.c src/mod_etsi.c src/mod_socket.c src/mod_tls.c src/mod_vault.c src/wkm_utils.c
 src_libwolfkeymgr_la_CFLAGS   = -DBUILDING_WKM $(AM_CFLAGS)
 src_libwolfkeymgr_la_CPPFLAGS = -DBUILDING_WKM $(AM_CPPFLAGS)
 src_libwolfkeymgr_la_LDFLAGS  = ${AM_LDFLAGS} -no-undefined -version-info ${WOLFKM_LIBRARY_VERSION}
@@ -25,6 +25,7 @@ nobase_include_HEADERS += wolfkeymgr/mod_etsi.h \
                           wolfkeymgr/mod_http.h \
                           wolfkeymgr/mod_socket.h \
                           wolfkeymgr/mod_tls.h \
+                          wolfkeymgr/mod_vault.h \
                           wolfkeymgr/options.h \
                           wolfkeymgr/version.h \
                           wolfkeymgr/visibility.h \

@@ -30,9 +30,12 @@
 static FILE* logFile = NULL;
 static enum log_level_t logLevel = WOLFKM_DEFAULT_LOG_LEVEL;
 
+const char* wolfSSL_ERR_reason_error_string(unsigned long e);
+const char* wc_GetErrorString(int error);
 
 const char* wolfKeyMgr_GetError(int err)
 {
+    if (err < WOLFKM_ERROR_BEGIN) {
     switch (err) {
         case WOLFKM_BAD_ARGS:
             return "Bad Function arguments";
@@ -58,8 +61,15 @@ const char* wolfKeyMgr_GetError(int err)
             return "Bad Header Request Type";
 
         default:
-            XLOG(WOLFKM_LOG_ERROR, "Unknown error %d\n", err); 
             break;
+    }
+    }
+    else {
+    #ifdef WOLFCRYPT_ONLY
+        return wc_GetErrorString(error);
+    #else
+        return wolfSSL_ERR_reason_error_string(err);
+    #endif
     }
     return "Unknown error number";
 }
@@ -94,13 +104,13 @@ const char* wolfKeyMgr_GetLogLevel(enum log_level_t level)
             return "INFO";
 
         case WOLFKM_LOG_WARN:
-            return "WARNING";
+            return "WARN";
 
         case WOLFKM_LOG_ERROR:
-            return "ERROR";
+            return "ERRO";
 
         case WOLFKM_LOG_DEBUG:
-            return "DEBUG";
+            return "DEBG";
 
         default:
             return "UNKNOWN";
@@ -218,7 +228,7 @@ double wolfGetCurrentTime(void)
 }
 
 #define LINE_LEN 16
-void wolfPrintBin(const byte* buffer, word32 length)
+void wolfPrintBinLevel(enum log_level_t level, const byte* buffer, word32 length)
 {
     word32 i, sz;
     char line[(LINE_LEN * 4) + 4], *tmp;
@@ -248,11 +258,16 @@ void wolfPrintBin(const byte* buffer, word32 length)
             else
                 tmp += sprintf(tmp, ".");
         }
-        XLOG(WOLFKM_LOG_DEBUG, "%s\n", line);
+        XLOG(level, "%s\n", line);
 
         buffer += sz;
         length -= sz;
     }
+}
+
+void wolfPrintBin(const byte* buffer, word32 length)
+{
+    wolfPrintBinLevel(WOLFKM_LOG_DEBUG, buffer, length);
 }
 
 int wolfSaveFile(const char* file, byte* buffer, word32 length)
@@ -284,4 +299,50 @@ int wolfSigIgnore(int sig)
         return -1;
 
     return 0;
+}
+
+int wolfByteToHexString(const byte* in, word32 inSz, char* out, word32 outSz)
+{
+    int i;
+    word32 calcSz = (inSz*2)+1;
+    const char* kHexStr = "0123456789ABCDEF";
+    if (in == NULL || out == NULL || outSz < calcSz)
+        return WOLFKM_BAD_ARGS;
+    for (i = 0; i < (int)inSz; i++) {
+        *out++ = kHexStr[((in[i])>>4) & 0xF];
+        *out++ = kHexStr[ (in[i])     & 0xF];
+    }
+    *out++ = '\0';
+    return calcSz;
+}
+
+static char HexToByte(char ch)
+{
+    if (ch >= '0' && ch <= '9')
+        ch -= '0';
+    else if (ch >= 'A' && ch <= 'F')
+        ch -= 'A' - 10;
+    else if (ch >= 'a' && ch <= 'f')
+        ch -= 'a' - 10;
+    else
+        ch = 0;
+    return ch;
+}
+
+int wolfHexStringToByte(const char* in, word32 inSz, byte* out, word32 outSz)
+{
+    int i;
+    word32 calcSz = 0;
+    char cl, ch;
+
+    if (in == NULL || out == NULL)
+        return WOLFKM_BAD_ARGS;
+
+    for (i = 0; i < (int)inSz && calcSz < outSz; i+=2) {
+        cl = HexToByte((char)in[i]);
+        ch = HexToByte((char)in[i+1]);
+        *out++ = (((byte)cl) << 4) | (byte)ch;
+        calcSz++;
+    }
+    return calcSz;
 }

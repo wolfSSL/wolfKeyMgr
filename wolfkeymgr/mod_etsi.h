@@ -33,10 +33,10 @@ extern "C" {
 
 
 #ifndef ETSI_MAX_REQUEST_SZ
-#define ETSI_MAX_REQUEST_SZ  1024
+#define ETSI_MAX_REQUEST_SZ  MAX_REQUEST_SIZE
 #endif
 #ifndef ETSI_MAX_RESPONSE_SZ
-#define ETSI_MAX_RESPONSE_SZ 1024
+#define ETSI_MAX_RESPONSE_SZ MAX_RESPONSE_SIZE
 #endif
 
 /* Determine max build-time DH key sizes */
@@ -99,13 +99,28 @@ typedef enum EtsiKeyType {
     ETSI_KEY_TYPE_MAX = ETSI_KEY_TYPE_FFDHE_8192,
 } EtsiKeyType;
 
+/* max key public name (can be adjusted at build-time if desired) */
+#ifndef ETSI_MAX_KEY_NAME
+#define ETSI_MAX_KEY_NAME 64
+#endif
+#define ETSI_MAX_KEY_NAME_STR (ETSI_MAX_KEY_NAME*2+1)
+
+#ifndef ETSI_MAX_FINGERPRINT
+#define ETSI_MAX_FINGERPRINT 10 /* 80-bits - per ETSI spec */
+#endif
+#define ETSI_MAX_FINGERPRINT_STR (ETSI_MAX_FINGERPRINT*2+1)
+
 typedef struct EtsiKey {
     enum EtsiKeyType type;
-    char   response[ETSI_MAX_RESPONSE_SZ];
+    byte   fingerprint[ETSI_MAX_FINGERPRINT];
+    word32 nameSz;
+    byte   name[ETSI_MAX_KEY_NAME]; /* public info - first 64-bytes */
     word32 responseSz;
+    byte   response[ETSI_MAX_RESPONSE_SZ];
     time_t expires; /* from HTTP HTTP_HDR_EXPIRES */
 
-    /* flags */
+    /* Internal Variables */
+    word32 useCount; /* times this key has been used */
     unsigned char isDynamic:1; /* key is dynamically allocated */
 } EtsiKey;
 
@@ -151,11 +166,10 @@ WOLFKM_API int wolfEtsiClientPush(EtsiClientCtx* client, EtsiKeyType keyType,
     const char* fingerprint, const char* contextStr,
     EtsiKeyCallbackFunc cb, void* cbCtx);
 
-/* Retrieve key data for a fingerprint between timestamps 
-   time as: (Jan 1, 1970 UTC - UNIX Epoch - `date +%s`) */
-WOLFKM_API int wolfEtsiClientFind(EtsiClientCtx* client, EtsiKeyType keyType,
-    const char* fingerprint, const char* contextStr, time_t begin, time_t end,
-    EtsiKeyCallbackFunc cb, void* cbCtx);
+/* Retrieve key data for a fingerprint for replay (expired key is okay) */
+WOLFKM_API int wolfEtsiClientFind(EtsiClientCtx* client, EtsiKey* key,
+    EtsiKeyType keyType, const char* fingerprint, const char* contextStr,
+    int timeoutSec);
 
 /* Disconnect from ETSI Key Manager */
 WOLFKM_API int wolfEtsiClientClose(EtsiClientCtx* client);
@@ -174,14 +188,23 @@ WOLFKM_API int wolfEtsiKeyLoadCTX(EtsiKey* key, WOLFSSL_CTX* ctx);
 /* Load key to WOLFSSL session directly */
 WOLFKM_API int wolfEtsiKeyLoadSSL(EtsiKey* key, WOLFSSL* ssl);
 /* Get pointer to PKCS8 key response */
-WOLFKM_API int wolfEtsiKeyGet(EtsiKey* key, byte** response, word32* responseSz);
+WOLFKM_API int wolfEtsiKeyGetPtr(EtsiKey* key, byte** response, word32* responseSz);
+/* Generate a new key */
+WOLFKM_API int wolfEtsiKeyGen(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng);
 /* print ETSI key data - for debugging / testing */
-WOLFKM_API int  wolfEtsiKeyPrint(EtsiKey* key);
+WOLFKM_API void wolfEtsiKeyPrint(EtsiKey* key);
 /* release ETSI key resources */
 WOLFKM_API void wolfEtsiKeyFree(EtsiKey* key);
 
 WOLFKM_API const char* wolfEtsiKeyNamedGroupStr(EtsiKey* key);
 WOLFKM_API const char* wolfEtsiKeyGetTypeStr(EtsiKeyType type);
+
+/* Compute name for public key based on TLS key share */
+WOLFKM_API int wolfEtsiGetPubKeyName(EtsiKeyType keyType,
+    const byte* pub, word32 pubSz, char* name, word32* nameSz);
+
+/* Build public name for key */
+WOLFKM_API int wolfEtsiKeyComputeName(EtsiKey* key);
 
 /* these are required if using multiple threads sharing the wolfSSL library for init mutex protection */
 WOLFKM_API int wolfEtsiClientInit(void);

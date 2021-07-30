@@ -3,6 +3,7 @@
 # All paths should be given relative to the root
 
 noinst_PROGRAMS += examples/middlebox/decrypt
+noinst_HEADERS  += examples/middlebox/decrypt.h
 examples_middlebox_decrypt_SOURCES      = examples/middlebox/decrypt.c
 examples_middlebox_decrypt_LDADD        = src/libwolfkeymgr.la -lpcap $(LIB_STATIC_ADD)
 examples_middlebox_decrypt_DEPENDENCIES = src/libwolfkeymgr.la

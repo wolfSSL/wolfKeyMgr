@@ -1,4 +1,4 @@
-/* version.h
+/* client.h
  *
  * Copyright (C) 2006-2021 wolfSSL Inc.
  *
@@ -19,21 +19,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
-#ifndef WOLFKM_VERSION_H
-#define WOLFKM_VERSION_H
+#ifndef WOLFKM_HTTPS_CLIENT_H
+#define WOLFKM_HTTPS_CLIENT_H
 
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#define LIBWOLFSSL_VERSION_STRING "0.10"
-#define LIBWOLFSSL_VERSION_HEX @HEX_VERSION@
-
-#ifdef __cplusplus
-}
-#endif
+int https_client_test(int argc, char** argv);
 
 
-#endif /* WOLFKM_VERSION_H */
-
+#endif /* WOLFKM_HTTPS_CLIENT_H */
