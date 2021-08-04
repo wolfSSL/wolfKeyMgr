@@ -142,12 +142,12 @@ static int etsi_client_find(char* urlStr, EtsiKey* key, int namedGroup,
     
     ret = etsi_client_connect(urlStr);
     if (ret == 0 && key) {
-        char name[ETSI_MAX_KEY_NAME_STR];
-        word32 nameSz = (word32)sizeof(name);
-        ret = wolfEtsiGetPubKeyName((EtsiKeyType)namedGroup, pub, pubSz,
-            name, &nameSz);
+        char fpStr[ETSI_MAX_FINGERPRINT_STR];
+        word32 fpStrSz = (word32)sizeof(fpStr);
+        ret = wolfEtsiCalcTlsFingerprint((EtsiKeyType)namedGroup, pub, pubSz,
+            fpStr, &fpStrSz);
         if (ret == 0) {
-            ret = wolfEtsiClientFind(gEtsiClient, key, namedGroup, name,
+            ret = wolfEtsiClientFind(gEtsiClient, key, namedGroup, fpStr,
                 NULL, ETSI_TEST_TIMEOUT_MS);
         }
         if (ret < 0) {
@@ -159,6 +159,7 @@ static int etsi_client_find(char* urlStr, EtsiKey* key, int namedGroup,
                 key->responseSz);
             wolfEtsiKeyPrint(key);
         }
+        (void)fpStrSz;
     }
     return ret;
 }
@@ -170,11 +171,6 @@ static int myKeyCb(void* vSniffer, int namedGroup,
 {
     int ret;
     static EtsiKey key;
-
-    if (!isOfflinePcap) {
-        /* decrypt is real-time, don't use find */
-        return 0;
-    }
 
     ret = etsi_client_find(NULL, &key, namedGroup, srvPub, srvPubSz);
     if (ret >= 0) {

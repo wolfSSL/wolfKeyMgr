@@ -39,6 +39,7 @@
 /* wolfssl headers */
 #include <wolfssl/wolfcrypt/ecc.h>
 #include <wolfssl/wolfcrypt/sha256.h>
+#include <wolfssl/wolfcrypt/hash.h>
 #include <wolfssl/wolfcrypt/asn.h>
 #include <wolfssl/wolfcrypt/random.h>
 

@@ -115,7 +115,7 @@ This application handles secure distribution and optional storage of the generat
 
 ```sh
 $ ./src/wolfkeymgr -?
-wolfKeyManager 0.9
+wolfKeyManager 0.11
 -?          Help, print this usage
 -i          Do not chdir / in daemon mode
 -b          Daemon mode, run in background
@@ -133,13 +133,15 @@ wolfKeyManager 0.9
 -K <keyt>   Key Type: SECP256R1, FFDHE_2048, X25519 or X448 (default SECP256R1)
 ```
 
+To exit the key manager use ctrl+c.
+
 ### ETSI Test client
 
 This demonstrates secure interactions with the key manager service using the ETSI HTTPS GET/PUT commands for different key types.
 
 ```sh
 $ ./examples/etsi_test/etsi_test -?
-etsi_test 0.9
+etsi_test 0.11
 -?          Help, print this usage
 -e          Error mode, force error response
 -h <str>    Host to connect to, default localhost
@@ -155,46 +157,27 @@ etsi_test 0.9
 -c <pem>    TLS Client Certificate, default certs/client-cert.pem
 -A <pem>    TLS CA Certificate, default certs/ca-cert.pem
 -K <keyt>   Key Type: SECP256R1, FFDHE_2048, X25519 or X448 (default SECP256R1)
--F <fprint> Fingerprint used for multiple servers (first 80-bit of pkey hash as hex string)
--n <name>   Find key using public key name (hex string)
+-F <fprint> Fingerprint of ephemeral public key (first 80-bit of pkey hash as hex string)
+-C <ctxstr> Context string (used for multiple servers)
 ```
 
 This client also support stress testing options:
 * Use the thread pool "-t" to spin up more threads.
 * Use the ETSI test client "-r" to make additional requests per thread.
-* Use the "-n" command to find key using public key name (hex string of first 64 bytes of public key).
 * Use the "-F" argument to get key for specific fingerprint (hex string of hash of public key - first 80 bits / 10 bytes)
+* Use the "-C" command to include context string (used for multiple servers).
 
-#### ETSI Fingerprint Names
+#### ETSI Fingerprint
 
-The fingerprint is a SHA-256 hash of the long term public key with the first 80 bits returned in big endian format. This is used when keys are served for multiple servers concurrently where each server should use a different ephemeral key. If the fingerprint is blank the same key will be returned assuming it is within the expiration and use count restrictions.
+The fingerprint is a SHA-256 hash of the ephemeral public key with the first 80 bits (10 bytes) in big endian format. If the fingerprint is blank the current active key for that TLS group will be returned (assuming it is within the expiration and use count restrictions).
 
-#### ETSI Context Names
+The fingerprint is used to lookup an ephemeral key based on public key using the following scheme:
+* ECC: Public X and Y hashed with SHA256 (first 10 bytes)
+* DH: Public key hashed with SHA256 (first 10 bytes)
 
-The context is used to lookup an ephemeral key based on public key using the following scheme:
-* ECC: Public X and Y limited to 32 digits each (64 total)
-* DH: Public key truncated to 64 digits.
+#### ETSI Context String
 
-The "contextStr" used in the HTTP GET is converted to a hex string up to 128 characters.
-
-For example: An ECC public key printed like this:
-
-```sh
-ECC Pub X: 5D2DA665BDD597EC3AAA6AA2E999F115CED9F1016324C7F1711294C8871608CC
-ECC Pub Y: 38006E20B8EDE358CF23CED1FF46593AC0CED787C55B360F35ED3B5D2854018B
-
-# Retrieved using:
-$ ./examples/etsi_test/etsi_test -n 5D2DA665BDD597EC3AAA6AA2E999F115CED9F1016324C7F1711294C8871608CC38006E20B8EDE358CF23CED1FF46593AC0CED787C55B360F35ED3B5D2854018B
-
-# Example Key Manager output:
-HTTP GET
-Version: HTTP/1.1
-URI: /.well-known/enterprise-transport-security/keys?fingerprints=&groups=0x0017&contextstr=5D2DA665BDD597EC3AAA6AA2E999F115CED9F1016324C7F1711294C8871608CC38006E20B8EDE358CF23CED1FF46593AC0CED787C55B360F35ED3B5D2854018
-Headers: 1
-    Accept: : application/pkcs8
-Context: 5D2DA665BDD597EC3AAA6AA2E999F115CED9F1016324C7F1711294C8871608CC38006E20B8EDE358CF23CED1FF46593AC0CED787C55B360F35ED3B5D2854018
-Group: SECP256R1 (23)
-```
+The context string is used to specify additional information to the key manager to distribute keys for multiple servers.
 
 ### HTTP Server / Client
 
@@ -217,8 +200,7 @@ Jun 15 14:26:54 2021: [DEBUG] 		Content-Length: : 121
 Jun 15 14:26:54 2021: [DEBUG] 	Body Size: 121
 Jun 15 14:26:54 2021: [INFO] Got ETSI response (121 bytes)
 Got ETSI static ephemeral key (121 bytes)
-Jun 15 14:26:54 2021: [INFO] ECC Pub X: C30E4D7E99B80D561736640FE108DB577DC399C9E9CAAA5338989D7B06978BA7
-Jun 15 14:26:54 2021: [INFO] ECC Pub Y: E446F67FED21B8B4267CD91738AC078CD32BB6E039875A4484CA07E859658526
+Jun 15 14:26:54 2021: [INFO] SECP256R1: E24EF332747DF70CD4E5
 
 TLS Accept 127.0.0.1
 Jun 15 14:27:01 2021: [DEBUG] HTTP GET
@@ -254,7 +236,6 @@ usage: ./decrypt or ./decrypt dumpFile keyServerURL [server] [port] [password]
 3. Run the middle-box decryption `./examples/middlebox/decrypt` and use the default parameters.
 4. Open a web browser to `https://localhost` or run the HTTP client example `./examples/https/client`.
 5. In the middle-box decryption window you will see the decrypted HTTPS traffic.
-co
 
 Notes:
 
@@ -270,10 +251,73 @@ Notes:
 4) If you get "Permission denied" errors try adding `sudo` to the commands.
 
 
+### Demo example output
+
+```
+% ./src/wolfkeymgr
+Aug 03 15:05:21 2021: [INFO] Starting Key Manager
+Aug 03 15:05:21 2021: [INFO] 	To exit use ctrl+c
+Aug 03 15:05:21 2021: [INFO] loaded CA certificate file ./certs/ca-cert.pem
+Aug 03 15:05:21 2021: [INFO] loaded key file ./certs/server-rsa-key.pem
+Aug 03 15:05:21 2021: [INFO] loaded certificate file ./certs/server-rsa-cert.pem
+Aug 03 15:05:21 2021: [ERRO] Vault open failed, creating new
+Aug 03 15:05:21 2021: [INFO] Vault ./wolfkeymgr.vault opened (0 bytes)
+Aug 03 15:05:21 2021: [INFO] Version: 1
+Aug 03 15:05:21 2021: [INFO] Header Size: 296
+Aug 03 15:05:21 2021: [INFO] Item Count: 0
+Aug 03 15:05:21 2021: [INFO] Total Size: 0
+Aug 03 15:05:21 2021: [WARN] Generating new SECP256R1 key
+Aug 03 15:05:21 2021: [INFO] Binding listener :::8119
+Aug 03 15:05:21 2021: [INFO] Setting up new ETSI conn item pool
+Aug 03 15:05:21 2021: [INFO] Growing ETSI service conn pool
+Aug 03 15:05:21 2021: [INFO] Growing ETSI service conn pool
+Aug 03 15:05:21 2021: [INFO] SECP256R1: E24EF332747DF70CD4E5
+Aug 03 15:05:21 2021: [WARN] Vault Auth: Setting up new encryption key
+Aug 03 15:05:21 2021: [INFO] Next key renewal 3600 seconds
+```
+
+```
+ % ./examples/https/server
+HTTPS Server: Port 443
+Aug 03 15:09:50 2021: [INFO] Connected to ETSI service
+```
+
+```
+ % ./examples/middlebox/decrypt
+1. lo0 (No description available)
+2. en0 (No description available)
+Enter the interface number (1-2) [default: 1]:
+server = 127.0.0.1
+server = ::1
+server = fe80::1
+Enter the port to scan [default: 443]:
+Enter the server key [default: https://localhost:8119]:
+Aug 03 15:07:33 2021: [INFO] Connected to ETSI service
+...
+
+Got ETSI static ephemeral key (121 bytes)
+Aug 03 15:07:33 2021: [INFO] SECP256R1: E24EF332747DF70CD4E5
+Loaded key for fe80::1:443
+SSL App Data(30:323):GET / HTTP/1.1
+Host: localhost
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en-us
+Connection: keep-alive
+Accept-Encoding: gzip, deflate, br
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1 Safari/605.1.15
+
+
+SSL App Data(32:132):HTTP/1.1 200 OK
+Content-Type: text/html
+Connection: keep-alive
+Content-Length: 44
+
+<html><body><h1>It works!</h1></body></html>
+```
+
 ## Features Missing
-* Finish adding multiple server support with "fingerprint" (see `ETSI_SVC_MAX_SERVERS`)
 * Find error response message (currently disconnects with socket FIN)
-* ED25519 and ED448
+* Curve25519 and Curve448
 * X509 Visibility support
 * TLS v1.2 ephemeral key support
 

@@ -36,4 +36,6 @@ include docs/include.am
 check_SCRIPTS+= $(dist_noinst_SCRIPTS)
 
 TESTS += $(check_SCRIPTS)
+TESTS += $(check_PROGRAMS)
+
 test: check

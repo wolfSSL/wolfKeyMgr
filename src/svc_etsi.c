@@ -79,7 +79,7 @@ static SvcInfo gEtsiService = {
 typedef struct EtsiSvcConn {
     HttpReq req;
     char    fingerprint[ETSI_MAX_FINGERPRINT_STR];
-    char    contextStr[ETSI_MAX_KEY_NAME_STR];
+    char    contextStr[ETSI_MAX_CONTEXT_STR];
     word32  groupNum; /* same as enum EtsiKeyType */
 } EtsiSvcConn;
 
@@ -92,7 +92,7 @@ static int AddKeyToVault(EtsiSvcCtx* svcCtx, EtsiKey* key)
     }
 
     return wolfVaultAdd(svcCtx->vault, key->type,
-        key->name, key->nameSz,
+        key->fingerprint, key->fingerprintSz,
         key->response, key->responseSz);
 }
 #endif
@@ -154,12 +154,16 @@ static int SetupKeyPackage(SvcConn* conn, EtsiSvcCtx* svcCtx)
     headers[2].string = expiresStr;
     memset(expiresStr, 0, sizeof(expiresStr));
 
-    /* find key based on group */
+    /* find key based on group and optional contextStr */
     pthread_mutex_lock(&svcCtx->lock);
     for (i=0; i<ETSI_SVC_MAX_ACTIVE_KEYS; i++) {
         if ((word32)svcCtx->keys[i].type == etsiConn->groupNum) {
-            key = &svcCtx->keys[i];
-            break;
+            word32 ctxStrSz = (word32)strlen(etsiConn->contextStr);
+            if (ctxStrSz == 0 || (ctxStrSz == (word32)strlen(svcCtx->keys[i].contextStr) && 
+                    strncmp(svcCtx->keys[i].contextStr, etsiConn->contextStr, ctxStrSz) == 0)) {
+                key = &svcCtx->keys[i];
+                break;
+            }
         }
     }
     /* if one doesn't exist for this group then trigger generation */
@@ -192,6 +196,9 @@ static int SetupKeyPackage(SvcConn* conn, EtsiSvcCtx* svcCtx)
         /* Format Expires Time */
         localtime_r(&key->expires, &tm);
         strftime(expiresStr, sizeof(expiresStr), HTTP_DATE_FMT, &tm);
+
+        /* set contextStr */
+        strncpy(key->contextStr, etsiConn->contextStr, sizeof(key->contextStr));
 
         /* increment use count */
         key->useCount++;
@@ -269,14 +276,19 @@ static void* KeyPushWorker(void* arg)
         now = wolfGetCurrentTimeT();
         for (i=0; i<ETSI_SVC_MAX_ACTIVE_KEYS; i++) {
             if (svcCtx->keys[i].type != ETSI_KEY_TYPE_UNKNOWN) {
+                int expired, maxUses;
+                expired = (svcCtx->keys[i].expires > 0 && 
+                                                now >= svcCtx->keys[i].expires);
+                maxUses = (svcCtx->keys[i].useCount >= 
+                                                    svcCtx->config.maxUseCount);
                 /* check if expired or use count exceeded */
-                if ((svcCtx->keys[i].expires > 0 && now >= svcCtx->keys[i].expires) || 
-                    (svcCtx->keys[i].useCount >= svcCtx->config.maxUseCount)
-                ) {
+                if (expired || maxUses) {
                     ret = EtsiSvcGenNewKey(svcCtx, svcCtx->keys[i].type,
                         &svcCtx->keys[i]);
-                    (void)ret; /* ignore failures, error logged in EtsiSvcGenNewKey */
+                    (void)ret; /* ignore error, logged in EtsiSvcGenNewKey */
+
                     keyGenCount++;
+                    now = wolfGetCurrentTimeT(); /* refresh time after key gen */
                 }
                 if (nextExpires == 0 || nextExpires > svcCtx->keys[i].expires) {
                     nextExpires = svcCtx->keys[i].expires;
@@ -301,10 +313,11 @@ static void* KeyPushWorker(void* arg)
 
         /* wait for wake signal or timeout */
         pthread_mutex_lock(&svcCtx->kgMutex);
-        pthread_cond_timedwait(&svcCtx->kgCond, &svcCtx->kgMutex, &max_wait);
+        ret = pthread_cond_timedwait(&svcCtx->kgCond, &svcCtx->kgMutex,
+                                                                     &max_wait);
         pthread_mutex_unlock(&svcCtx->kgMutex);
 
-        XLOG(WOLFKM_LOG_DEBUG, "Key Generation Worker Wake\n");
+        XLOG(WOLFKM_LOG_DEBUG, "Key Generation Worker Wake %d sec\n", ret);
     } while (1);
 
     return NULL;
@@ -398,15 +411,14 @@ int wolfEtsiSvc_DoRequest(SvcConn* conn)
     }
 
 #ifdef WOLFKM_VAULT
-    /* If "find" request (contextStr) populated */
-    /* find only uses contextStr, not fingerprint */
-    if (etsiConn->groupNum > 0 && strlen(etsiConn->contextStr) > 0) {
+    /* find uses fingerprint only */
+    if (etsiConn->groupNum > 0 && strlen(etsiConn->fingerprint) > 0) {
         wolfVaultItem item;
         byte name[WOLFKM_VAULT_NAME_MAX_SZ];
         word32 nameSz = (word32)sizeof(name);
         memset(&item, 0, sizeof(item));
-        ret = wolfHexStringToByte(etsiConn->contextStr,
-            strlen(etsiConn->contextStr), name, nameSz);
+        ret = wolfHexStringToByte(etsiConn->fingerprint,
+            strlen(etsiConn->fingerprint), name, nameSz);
         if (ret > 0) {
             nameSz = ret;
             ret = 0;
@@ -448,7 +460,7 @@ void wolfEtsiSvc_ConnClose(SvcConn* conn)
 
 int wolfEtsiSvc_DoNotify(SvcConn* conn)
 {
-    int ret;
+    int ret = 0;
     SvcInfo* svc;
     EtsiSvcCtx* svcCtx;
     EtsiSvcConn* etsiConn;
@@ -462,14 +474,15 @@ int wolfEtsiSvc_DoNotify(SvcConn* conn)
     svcCtx = (EtsiSvcCtx*)svc->svcCtx;
     etsiConn = (EtsiSvcConn*)conn->svcConnCtx;
 
-    /* update key */
-    ret = SetupKeyPackage(conn, svcCtx);
+    if (etsiConn != NULL && etsiConn->req.type == HTTP_METHOD_PUT) {
+        /* update key */
+        ret = SetupKeyPackage(conn, svcCtx);
 
-    /* push key to active push threads */
-    if (ret == 0 && etsiConn != NULL && 
-            etsiConn->req.type == HTTP_METHOD_PUT) {    
-        /* send updated key */
-        ret = wolfEtsiSvc_DoResponse(conn);
+        /* push key to active push threads */
+        if (ret == 0)  {
+            /* send updated key */
+            ret = wolfEtsiSvc_DoResponse(conn);
+        }
     }
 
     return ret;

@@ -99,11 +99,10 @@ typedef enum EtsiKeyType {
     ETSI_KEY_TYPE_MAX = ETSI_KEY_TYPE_FFDHE_8192,
 } EtsiKeyType;
 
-/* max key public name (can be adjusted at build-time if desired) */
-#ifndef ETSI_MAX_KEY_NAME
-#define ETSI_MAX_KEY_NAME 64
+/* max context string (can be adjusted at build-time if desired) */
+#ifndef ETSI_MAX_CONTEXT_STR
+#define ETSI_MAX_CONTEXT_STR 32
 #endif
-#define ETSI_MAX_KEY_NAME_STR (ETSI_MAX_KEY_NAME*2+1)
 
 #ifndef ETSI_MAX_FINGERPRINT
 #define ETSI_MAX_FINGERPRINT 10 /* 80-bits - per ETSI spec */
@@ -112,9 +111,9 @@ typedef enum EtsiKeyType {
 
 typedef struct EtsiKey {
     enum EtsiKeyType type;
+    word32 fingerprintSz;
     byte   fingerprint[ETSI_MAX_FINGERPRINT];
-    word32 nameSz;
-    byte   name[ETSI_MAX_KEY_NAME]; /* public info - first 64-bytes */
+    char   contextStr[ETSI_MAX_CONTEXT_STR];
     word32 responseSz;
     byte   response[ETSI_MAX_RESPONSE_SZ];
     time_t expires; /* from HTTP HTTP_HDR_EXPIRES */
@@ -148,14 +147,15 @@ WOLFKM_API int wolfEtsiClientConnect(EtsiClientCtx* client,
 WOLFKM_API int wolfEtsiClientMakeRequest(EtsiClientType type, const char* fingerprint,
     const char* groups, const char* contextstr, byte* request, word32* requestSz);
 
-/* Get will return current key for provided fingerprint */
-/* Fingerprint is a SHA256 hash of public key first 80 bits of digest in big- 
-    endian format as HEX string (10 characters max) */
-/* keyType can be DHE/ECDHE/X25519/X448 */
-/* return:
-     - zero response means existing key is used, 
-     - negative is error
-     - positive means new key retrieved */
+/* Get will return current key for provided fingerprint
+ * fingerprint: a SHA256 hash of public key first 80 bits of digest in big- 
+ *  endian format as HEX string (10 characters max)
+ * contextStr: Optional server info (for multiple server system)
+ * keyType can be DHE/ECDHE/X25519/X448
+ * return:
+ *   - zero response means existing key is used, 
+ *   - negative is error
+ *   - positive means new key retrieved */
 WOLFKM_API int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key, 
     EtsiKeyType keyType, const char* fingerprint, const char* contextStr,
     int timeoutSec);
@@ -200,8 +200,8 @@ WOLFKM_API const char* wolfEtsiKeyNamedGroupStr(EtsiKey* key);
 WOLFKM_API const char* wolfEtsiKeyGetTypeStr(EtsiKeyType type);
 
 /* Compute name for public key based on TLS key share */
-WOLFKM_API int wolfEtsiGetPubKeyName(EtsiKeyType keyType,
-    const byte* pub, word32 pubSz, char* name, word32* nameSz);
+WOLFKM_API int wolfEtsiCalcTlsFingerprint(EtsiKeyType keyType,
+    const byte* pub, word32 pubSz, char* fpStr, word32* fpStrSz);
 
 /* Build public name for key */
 WOLFKM_API int wolfEtsiKeyComputeName(EtsiKey* key);

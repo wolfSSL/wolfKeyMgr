@@ -34,7 +34,7 @@ extern "C" {
 #include <wolfssl/wolfcrypt/settings.h>
 
 #ifndef WOLFKM_VAULT_NAME_MAX_SZ
-#define WOLFKM_VAULT_NAME_MAX_SZ 64
+#define WOLFKM_VAULT_NAME_MAX_SZ 16
 #endif
 #ifndef WOLFKM_VAULT_ENC_KEYSZ
 #define WOLFKM_VAULT_ENC_KEYSZ (2048/8)

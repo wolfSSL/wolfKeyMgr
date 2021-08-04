@@ -207,6 +207,7 @@ int main(int argc, char** argv)
     /* start log */
     wolfKeyMgr_SetLogFile(logName, daemon, logLevel);
     XLOG(WOLFKM_LOG_INFO, "Starting Key Manager\n");
+    XLOG(WOLFKM_LOG_INFO, "\tTo exit use ctrl+c\n");
 
     if (CheckCtcSettings() != 1) {
         XLOG(WOLFKM_LOG_ERROR, "wolfSSL math library mismatch in settings\n");

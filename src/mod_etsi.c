@@ -652,6 +652,35 @@ static int NamedGroupToDhParams(EtsiKeyType keyType,
 }
 #endif
 
+
+static int wolfKeyCalcFingerprint(EtsiKeyType keyType, const byte* pub, word32 pubSz,
+    byte* fp, word32* fpSz)
+{
+    int ret = 0;
+    byte digest[WC_SHA256_DIGEST_SIZE];
+    word32 tmpSz;
+
+    if (pub == NULL || pubSz == 0 || fp == NULL || fpSz == NULL)
+        return WOLFKM_BAD_ARGS;
+
+    memset(fp, 0, *fpSz);
+    tmpSz = *fpSz;
+    *fpSz = 0;
+
+    /* SHA256 Hash Pub Key */
+    ret = wc_Sha256Hash(pub, pubSz, digest);
+    if (ret == 0) {
+        /* Return 10-bytes truncated (big endian) */
+        if (tmpSz > WC_SHA256_DIGEST_SIZE)
+            tmpSz = WC_SHA256_DIGEST_SIZE;
+        memcpy(fp, pub, tmpSz);
+        *fpSz = tmpSz;
+    }
+
+    (void)keyType;
+    return ret;
+}
+
 #ifdef HAVE_ECC
 static int GenNewKeyEcc(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
 {
@@ -683,20 +712,17 @@ static int GenNewKeyEcc(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
     }
     if (ret == 0) {
         /* export public */
-        byte pubX[MAX_ECC_BYTES];
-        byte pubY[MAX_ECC_BYTES];
-        word32 pubXLen = sizeof(pubX), pubYLen = sizeof(pubY);
+        byte pub[MAX_ECC_BYTES*2];
+        word32 pubXLen = sizeof(pub)/2, pubYLen = sizeof(pub)/2;
         ret = wc_ecc_export_ex(&ecc,
-            pubX, &pubXLen,
-            pubY, &pubYLen, 
+            pub,         &pubXLen,
+            pub+keySize, &pubYLen, 
             NULL, NULL, WC_TYPE_UNSIGNED_BIN);
         if (ret == 0) {
-            /* compute name for key */
-            if (pubXLen > ETSI_MAX_KEY_NAME/2) pubXLen = ETSI_MAX_KEY_NAME/2;
-            if (pubYLen > ETSI_MAX_KEY_NAME/2) pubYLen = ETSI_MAX_KEY_NAME/2;
-            memcpy(key->name,         pubX, pubXLen);
-            memcpy(key->name+pubXLen, pubY, pubYLen);
-            key->nameSz = pubXLen + pubYLen;
+            /* compute fingerprint for key */
+            word32 fpSz = (word32)sizeof(key->fingerprint);
+            ret = wolfKeyCalcFingerprint(keyType, pub, keySize*2,
+                key->fingerprint, &fpSz);
         }
     }
     wc_ecc_free(&ecc);
@@ -753,10 +779,10 @@ static int GenNewKeyDh(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
             pubKey, pubKeySz);
     }
     if (ret == 0) {
-        /* compute name for key */
-        if (pubKeySz > ETSI_MAX_KEY_NAME) pubKeySz = ETSI_MAX_KEY_NAME;
-        memcpy(key->name, pubKey, pubKeySz);
-        key->nameSz = pubKeySz;
+        /* compute fingerprint for key */
+        word32 fpSz = (word32)sizeof(key->fingerprint);
+        ret = wolfKeyCalcFingerprint(keyType, pubKey, pubKeySz,
+            key->fingerprint, &fpSz);
     }
     if (ret == 0) {
         /* export DH key as DER */
@@ -811,25 +837,24 @@ int wolfEtsiKeyGen(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
 
     if (ret == 0) {
         key->type = keyType;
+        key->useCount = 0;
     }
 
     return ret;
 }
 
-
 /* Public key format is same as over the wire via TLS */
-int wolfEtsiGetPubKeyName(EtsiKeyType keyType,
-    const byte* pub, word32 pubSz, char* name, word32* nameSz)
+int wolfEtsiCalcTlsFingerprint(EtsiKeyType keyType,
+    const byte* pub, word32 pubSz, char* fpStr, word32* fpStrSz)
 {
     int ret = WOLFKM_NOT_COMPILED_IN;
-    word32 tmpSz;
+    byte fp[ETSI_MAX_FINGERPRINT];
+    word32 fpSz = (word32)sizeof(fp);
 
-    if (pub == NULL || pubSz == 0 || name == NULL || nameSz == NULL)
+    if (pub == NULL || pubSz == 0 || fpStr == NULL || fpStrSz == NULL)
         return WOLFKM_BAD_ARGS;
 
-    memset(name, 0, *nameSz);
-    tmpSz = *nameSz;
-    *name = 0;
+    memset(fp, 0, sizeof(fp));
 
 #ifdef HAVE_ECC
     if (keyType >= ETSI_KEY_TYPE_SECP160K1 && 
@@ -846,26 +871,21 @@ int wolfEtsiGetPubKeyName(EtsiKeyType keyType,
         /* this handles compressed ECC keys if HAVE_COMP_KEY is defined */
         ret = wc_ecc_init_ex(&key, NULL, INVALID_DEVID);
         if (ret == 0) {
-            byte pubX[MAX_ECC_BYTES*2+1];
-            byte pubY[MAX_ECC_BYTES*2+1];
-            word32 pubXLen = sizeof(pubX), pubYLen = sizeof(pubY);
+            byte pubKey[MAX_ECC_BYTES*2];
+            word32 pubXLen = sizeof(pubKey)/2, pubYLen = sizeof(pubKey)/2;
             ret = wc_ecc_import_x963_ex(pub, pubSz, &key, curveId);
             if (ret == 0) {
-                /* export public - do not trust length from wc_ecc_export_ex */
+                /* export public - do not trust length from wc_ecc_export_ex, 
+                 * some older versions do not return correct length for hex string */
                 ret = wc_ecc_export_ex(&key,
-                    pubX, &pubXLen,
-                    pubY, &pubYLen, 
-                    NULL, NULL, WC_TYPE_HEX_STR);
+                    pubKey,         &pubXLen,
+                    pubKey+keySize, &pubYLen, 
+                    NULL, NULL, WC_TYPE_UNSIGNED_BIN);
             }
             if (ret == 0) {
-                /* compute name for key */
-                pubXLen = pubYLen = keySize*2;
-                tmpSz = (tmpSz-1)/2;
-                if (pubXLen > tmpSz) pubXLen = tmpSz;
-                if (pubYLen > tmpSz) pubYLen = tmpSz;
-                memcpy(name,         pubX, pubXLen);
-                memcpy(name+pubXLen, pubY, pubYLen);
-                *nameSz = pubXLen + pubYLen;
+                /* compute fingerprint for key */
+                ret = wolfKeyCalcFingerprint(keyType, pubKey, keySize*2,
+                    fp, &fpSz);
             }
         }
         wc_ecc_free(&key);
@@ -879,12 +899,7 @@ int wolfEtsiGetPubKeyName(EtsiKeyType keyType,
         word32 pubKeySz = 0;
         ret = NamedGroupToDhParams(keyType, NULL, NULL, &pubKeySz);
         if (ret == 0) {
-            if (pubKeySz > (tmpSz-1)/2) pubKeySz = (tmpSz-1)/2;
-            ret = wolfByteToHexString(pub, pubKeySz, name, tmpSz);
-            if (ret > 0) {
-                *nameSz = ret;
-                ret = 0;
-            }
+            ret = wolfKeyCalcFingerprint(keyType, pub, pubKeySz, fp, &fpSz);
         }
     }
 #endif
@@ -900,30 +915,37 @@ int wolfEtsiGetPubKeyName(EtsiKeyType keyType,
         //keySize = 56;
     }
 #endif
+
+    if (ret == 0) {
+        /* convert bytes to hex string */
+        ret = wolfByteToHexString(fp, fpSz, fpStr, *fpStrSz);
+        if (ret > 0) {
+            *fpStrSz = ret;
+            ret = 0;
+        }
+    }
     return ret;
 }
 
 int wolfEtsiKeyComputeName(EtsiKey* key)
 {
     int ret = WOLFKM_NOT_COMPILED_IN;
-    int keyAlgo, nameSz;
-    word32 tmpSz;
-    byte* name;
+    int keyAlgo;
+    word32 fpSz;
+    byte* fp;
 
     if (key == NULL) {
         return WOLFKM_BAD_ARGS;
     }
 
     /* if name is already populated then do not calculate again */
-    if (key->nameSz > 0) {
+    if (key->fingerprintSz > 0) {
         return 0;
     }
 
-    name = key->name;
-    nameSz = (int)sizeof(key->name);
-    memset(name, 0, nameSz);
-    tmpSz = nameSz;
-    nameSz = 0;
+    fp = key->fingerprint;
+    fpSz = (int)sizeof(key->fingerprint);
+    memset(fp, 0, fpSz);
 
     keyAlgo = wolfEtsiKeyGetPkType(key);
 #ifdef HAVE_ECC
@@ -936,20 +958,17 @@ int wolfEtsiKeyComputeName(EtsiKey* key)
             ret = wc_EccPrivateKeyDecode((byte*)key->response, &idx, &ecKey,
                 key->responseSz);
             if (ret == 0) {
-                byte pubX[MAX_ECC_BYTES];
-                byte pubY[MAX_ECC_BYTES];
-                word32 pubXLen = sizeof(pubX), pubYLen = sizeof(pubY);
+                byte pub[MAX_ECC_BYTES*2];
+                word32 pubXLen = sizeof(pub)/2, pubYLen = sizeof(pub)/2;
+                word32 keySize = wc_ecc_size(&ecKey);
                 ret = wc_ecc_export_ex(&ecKey,
-                    pubX, &pubXLen,
-                    pubY, &pubYLen, 
+                    pub, &pubXLen,
+                    pub + keySize, &pubYLen, 
                     NULL, NULL, WC_TYPE_UNSIGNED_BIN);
                 if (ret == 0) {
-                    /* compute name for key */
-                    if (pubXLen > tmpSz/2) pubXLen = tmpSz/2;
-                    if (pubYLen > tmpSz/2) pubYLen = tmpSz/2;
-                    memcpy(name,         pubX, pubXLen);
-                    memcpy(name+pubXLen, pubY, pubYLen);
-                    nameSz = pubXLen + pubYLen;
+                    /* compute fingerprint for key */
+                    ret = wolfKeyCalcFingerprint(key->type, pub, keySize*2,
+                        fp, &fpSz);
                 }
             }
             wc_ecc_free(&ecKey);
@@ -971,9 +990,9 @@ int wolfEtsiKeyComputeName(EtsiKey* key)
                 ret = wc_export_int(&dhKey.pub, pubKey, &pubKeyLen,
                     MAX_DH_PUB_SZ, WC_TYPE_UNSIGNED_BIN);
                 if (ret == 0) {
-                    if (pubKeyLen > tmpSz) pubKeyLen = tmpSz;
-                    memcpy(name, pubKey, pubKeyLen);
-                    nameSz = pubKeyLen;
+                    /* compute fingerprint for key */
+                    ret = wolfKeyCalcFingerprint(key->type, pubKey, pubKeyLen,
+                        fp, &fpSz);
                 }
             }
             wc_FreeDhKey(&dhKey);
@@ -994,7 +1013,7 @@ int wolfEtsiKeyComputeName(EtsiKey* key)
         XLOG(WOLFKM_LOG_INFO, "X448 Pub: TODO\n");
 #endif
 
-    key->nameSz = nameSz;
+    key->fingerprintSz = fpSz;
 
     return ret;
 }
@@ -1003,7 +1022,7 @@ void wolfEtsiKeyPrint(EtsiKey* key)
 {
     int ret;
     const char* keyAlgoStr;
-    char pubName[ETSI_MAX_KEY_NAME_STR];
+    char pubName[ETSI_MAX_FINGERPRINT_STR];
     int pubSz = (int)sizeof(pubName);
 
     if (key == NULL) {
@@ -1023,7 +1042,7 @@ void wolfEtsiKeyPrint(EtsiKey* key)
     }
 
     /* convert to hex string (function handles null termination) */
-    pubSz = wolfByteToHexString(key->name, key->nameSz,
+    pubSz = wolfByteToHexString(key->fingerprint, key->fingerprintSz,
         pubName, sizeof(pubName));
 
     XLOG(WOLFKM_LOG_INFO, "%s: %s\n", keyAlgoStr, pubName);
