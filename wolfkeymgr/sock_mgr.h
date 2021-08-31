@@ -88,7 +88,7 @@ struct SvcInfo {
     svcTimeoutFunc  timeoutCb;
     svcNotifyFunc   notifyCb;
     svcCloseFunc    closeCb;
-    
+
     /* TLS certificate / key - As DER/ASN.1*/
     byte*           keyBuffer;
     byte*           certBuffer;

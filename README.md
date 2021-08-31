@@ -50,7 +50,7 @@ $ ./autogen.sh
 $ git clone https://github.com/wolfssl/wolfssl
 $ cd wolfssl
 $ ./autogen.sh
-$ ./configure --enable-sniffer CFLAGS="-DWOLFSSL_DH_EXTRA"
+$ ./configure --enable-sniffer --enable-curve25519 CFLAGS="-DWOLFSSL_DH_EXTRA"
 $ make
 $ make check   # (optional, but highly recommended)
 $ sudo make install
@@ -62,6 +62,7 @@ Notes:
 * To enable all ARMv8 (aarch64) speedups use `--enable-armasm --enable-sp --enable-sp-asm`
 * Requires at least wolfSSL v4.8.0 with PR:
    - https://github.com/wolfSSL/wolfssl/pull/4181
+   - https://github.com/wolfSSL/wolfssl/pull/4335 (required for Curve25519)
 
 2. Install libevent version 2.0+
 
@@ -101,7 +102,7 @@ Notes:
 * A custom install location can be specified using: `./configure --prefix=/opt/local`
 * `autogen.sh` is script to generate configure, you'll need the autoconf tools
 installed, then proceed to the next step.
-
+* `src/wolfkeymgr` is the key manager service / dameon. A make install will typically put it into `/usr/local/bin/wolfkeymgr` or ``/usr/bin/wolfkeymgr`.
 
 ## Examples
 
@@ -115,7 +116,7 @@ This application handles secure distribution and optional storage of the generat
 
 ```sh
 $ ./src/wolfkeymgr -?
-wolfKeyManager 0.11
+wolfKeyManager 1.0
 -?          Help, print this usage
 -i          Do not chdir / in daemon mode
 -b          Daemon mode, run in background
@@ -141,7 +142,7 @@ This demonstrates secure interactions with the key manager service using the ETS
 
 ```sh
 $ ./examples/etsi_test/etsi_test -?
-etsi_test 0.11
+etsi_test 1.0
 -?          Help, print this usage
 -e          Error mode, force error response
 -h <str>    Host to connect to, default localhost
@@ -316,8 +317,8 @@ Content-Length: 44
 ```
 
 ## Features Missing
+
 * Find error response message (currently disconnects with socket FIN)
-* Curve25519 and Curve448
 * X509 Visibility support
 * TLS v1.2 ephemeral key support
 

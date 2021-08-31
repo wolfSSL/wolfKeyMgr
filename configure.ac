@@ -5,7 +5,7 @@
 
 AC_PREREQ(2.59)
 
-AC_INIT([wolfKeyManager],[0.11],[http://www.wolfssl.com])
+AC_INIT([wolfKeyManager],[1.0],[http://www.wolfssl.com])
 AC_CONFIG_AUX_DIR(config)
 AC_CONFIG_HEADERS([wolfkeymgr/config.h])
 AC_CONFIG_MACRO_DIR(m4)
@@ -71,7 +71,7 @@ LT_PREREQ([2.2])
 LT_INIT([disable-static win32-dll])
 
 # Shared library versioning
-WOLFKM_LIBRARY_VERSION=7:0:0
+WOLFKM_LIBRARY_VERSION=8:0:0
 #                      | | |
 #               +------+ | +---+
 #               |        |     |
@@ -252,11 +252,13 @@ echo ""
 echo "   * Installation prefix:       $prefix"
 echo "   * System type:               $host_vendor-$host_os"
 echo "   * Host CPU:                  $host_cpu"
-echo "   * C Compiler:                $CC_VERSION"
+echo "   * C Compiler:                $CC"
 echo "   * C Flags:                   $CFLAGS"
+echo "   * C++ Compiler:              $CXX"
+echo "   * C++ Flags:                 $CXXFLAGS"
 echo "   * CPP Flags:                 $CPPFLAGS"
+echo "   * CCAS Flags:                $CCASFLAGS"
 echo "   * LIB Flags:                 $LIB"
-echo "   * Debug enabled:             $ax_enable_debug"
 
 echo "   * Vault                      $ENABLED_VAULT"
 echo "   * Sniffer                    $ENABLED_SNIFFER"

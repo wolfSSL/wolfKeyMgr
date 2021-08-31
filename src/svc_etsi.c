@@ -145,7 +145,7 @@ static int SetupKeyPackage(SvcConn* conn, EtsiSvcCtx* svcCtx)
     }
 
     etsiConn = (EtsiSvcConn*)conn->svcConnCtx;
-    
+
     headers[0].type = HTTP_HDR_CONTENT_TYPE;
     headers[0].string = "application/pkcs8";
     headers[1].type = HTTP_HDR_CONNECTION;
@@ -159,7 +159,7 @@ static int SetupKeyPackage(SvcConn* conn, EtsiSvcCtx* svcCtx)
     for (i=0; i<ETSI_SVC_MAX_ACTIVE_KEYS; i++) {
         if ((word32)svcCtx->keys[i].type == etsiConn->groupNum) {
             word32 ctxStrSz = (word32)strlen(etsiConn->contextStr);
-            if (ctxStrSz == 0 || (ctxStrSz == (word32)strlen(svcCtx->keys[i].contextStr) && 
+            if (ctxStrSz == 0 || (ctxStrSz == (word32)strlen(svcCtx->keys[i].contextStr) &&
                     strncmp(svcCtx->keys[i].contextStr, etsiConn->contextStr, ctxStrSz) == 0)) {
                 key = &svcCtx->keys[i];
                 break;
@@ -205,8 +205,8 @@ static int SetupKeyPackage(SvcConn* conn, EtsiSvcCtx* svcCtx)
 
         /* Wrap key in HTTP server response */
         conn->responseSz = sizeof(conn->response);
-        ret = wolfHttpServer_EncodeResponse(0, NULL, 
-            conn->response, &conn->responseSz, headers, 
+        ret = wolfHttpServer_EncodeResponse(0, NULL,
+            conn->response, &conn->responseSz, headers,
             sizeof(headers)/sizeof(HttpHeader), (byte*)key->response,
             key->responseSz);
 
@@ -242,8 +242,8 @@ static int SetupKeyFindResponse(SvcConn* conn, wolfVaultItem* item)
 
     /* Wrap key in HTTP server response */
     conn->responseSz = sizeof(conn->response);
-    ret = wolfHttpServer_EncodeResponse(0, NULL, 
-        conn->response, &conn->responseSz, headers, 
+    ret = wolfHttpServer_EncodeResponse(0, NULL,
+        conn->response, &conn->responseSz, headers,
         sizeof(headers)/sizeof(HttpHeader), (byte*)item->data,
         item->dataSz);
 
@@ -277,9 +277,9 @@ static void* KeyPushWorker(void* arg)
         for (i=0; i<ETSI_SVC_MAX_ACTIVE_KEYS; i++) {
             if (svcCtx->keys[i].type != ETSI_KEY_TYPE_UNKNOWN) {
                 int expired, maxUses;
-                expired = (svcCtx->keys[i].expires > 0 && 
+                expired = (svcCtx->keys[i].expires > 0 &&
                                                 now >= svcCtx->keys[i].expires);
-                maxUses = (svcCtx->keys[i].useCount >= 
+                maxUses = (svcCtx->keys[i].useCount >=
                                                     svcCtx->config.maxUseCount);
                 /* check if expired or use count exceeded */
                 if (expired || maxUses) {
@@ -295,7 +295,7 @@ static void* KeyPushWorker(void* arg)
                 }
             }
         }
-        renewSec = (nextExpires > now) ? 
+        renewSec = (nextExpires > now) ?
             nextExpires - now :
             svcCtx->config.renewSec;
         pthread_mutex_unlock(&svcCtx->lock);
@@ -429,7 +429,7 @@ int wolfEtsiSvc_DoRequest(SvcConn* conn)
             if (ret == 0) {
                 ret = SetupKeyFindResponse(conn, &item);
             }
-            wolfVaultFreeItem(&item);            
+            wolfVaultFreeItem(&item);
         }
     }
     else
@@ -610,7 +610,7 @@ static int wolfEtsiSvcVaultAuthCb(wolfVaultCtx* ctx, byte* key, word32 keySz,
     }
 
     /* Setup encryption key (if needed) */
-    if (memcmp(keyEnc, zeroBuffer, keyEncSz) == 0) {        
+    if (memcmp(keyEnc, zeroBuffer, keyEncSz) == 0) {
         /* Generate key for encryption */
         ret = wc_RNG_GenerateBlock(&rng, key, keySz);
 
@@ -624,7 +624,7 @@ static int wolfEtsiSvcVaultAuthCb(wolfVaultCtx* ctx, byte* key, word32 keySz,
         wc_FreeRng(&rng);
         return ret;
     }
-     
+
     /* Decode the RSA long term private key */
     ret = wc_RsaPrivateKeyDecode(svc->keyBuffer, &idx, &rsa, svc->keyBufferSz);
     if (ret != 0) {
@@ -669,7 +669,7 @@ static int wolfEtsiSvcVaultAuthCb(wolfVaultCtx* ctx, byte* key, word32 keySz,
             /* Generate key for encryption */
             ret = wc_RNG_GenerateBlock(&rng, key, keySz);
         }
-    
+
         /* use long term private RSA key to encrypt key */
         ret = wc_RsaPublicEncrypt(key, keySz, keyEnc, privKeySz, &rsa,
             &rng);
@@ -708,7 +708,7 @@ int wolfEtsiSvc_SetVaultFile(SvcInfo* svc, const char* vaultFile)
 {
     int ret = 0;
     EtsiSvcCtx* svcCtx;
-    
+
     if (svc == NULL || vaultFile == NULL)
         return WOLFKM_BAD_ARGS;
 

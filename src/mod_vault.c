@@ -26,6 +26,10 @@
 
 #ifdef WOLFKM_VAULT
 
+#if defined(WOLFKM_VAULT_ENC) && !defined(HAVE_AESGCM)
+    #error Vault encryption requires AES GCM
+#endif
+
 #define VAULT_HEADER_ID  0x666C6F57U /* Wolf - little endian */
 #define VAULT_ITEM_ID    0x6B636150U /* Pack - little endian */
 #define VAULT_HEADER_VER 1
@@ -91,12 +95,12 @@ static size_t wolfVaultGetSize(wolfVaultCtx* ctx)
     return sz;
 }
 
-static void wolfVaultFlush(wolfVaultCtx* ctx)
+static int wolfVaultFlush(wolfVaultCtx* ctx)
 {
     int ret;
 
     if (ctx == NULL)
-        return;
+        return WOLFKM_BAD_ARGS;
 
     ret = wc_LockMutex(&ctx->lock);
     if (ret == 0) {
@@ -109,23 +113,27 @@ static void wolfVaultFlush(wolfVaultCtx* ctx)
 
         wc_UnLockMutex(&ctx->lock);
     }
+    return ret;
 }
 
 static int wolfVaultCreateNew(wolfVaultCtx* ctx, const char* file)
 {
-    int ret = WOLFKM_BAD_FILE;
+    int ret;
 
     /* create vault file */
     ctx->fd = fopen(file, "wb+");
-    if (ctx->fd != NULL) {
-        /* write header */
-        memset(&ctx->header, 0, sizeof(VaultHeader_t));
-        ctx->header.id = VAULT_HEADER_ID;
-        ctx->header.version = VAULT_HEADER_VER;
-        ctx->header.headerSz = sizeof(VaultHeader_t);
-        ret = (int)fwrite(&ctx->header, 1, sizeof(VaultHeader_t), ctx->fd);
-        ret = (ret == sizeof(VaultHeader_t)) ? 0 : WOLFKM_BAD_FILE;
+    if (ctx->fd == NULL) {
+        return WOLFKM_BAD_FILE;
     }
+
+    /* write header */
+    memset(&ctx->header, 0, sizeof(ctx->header));
+    ctx->header.id = VAULT_HEADER_ID;
+    ctx->header.version = VAULT_HEADER_VER;
+    ctx->header.headerSz = sizeof(ctx->header);
+    ret = (int)fwrite(&ctx->header, 1, sizeof(ctx->header), ctx->fd);
+    ret = (ret == sizeof(ctx->header)) ? 0 : WOLFKM_BAD_FILE;
+
     return ret;
 }
 
@@ -135,14 +143,16 @@ int wolfVaultOpen(wolfVaultCtx** ctx, const char* file)
     wolfVaultCtx* ctx_new;
     size_t vaultSz = 0;
 
-    if (ctx == NULL) 
+    if (ctx == NULL) {
         return WOLFKM_BAD_ARGS;
+    }
 
     ctx_new = (wolfVaultCtx*)malloc(sizeof(wolfVaultCtx));
-    if (ctx_new == NULL)
+    if (ctx_new == NULL) {
         return WOLFKM_BAD_MEMORY;
+    }
 
-    memset(ctx_new, 0, sizeof(wolfVaultCtx));
+    memset(ctx_new, 0, sizeof(*ctx_new));
     wc_InitMutex(&ctx_new->lock);
 
     /* try opening vault file */
@@ -168,9 +178,9 @@ int wolfVaultOpen(wolfVaultCtx** ctx, const char* file)
             ret = WOLFKM_BAD_FILE;
         }
 
-        if (ret == 0 && ctx_new->header.headerSz > sizeof(VaultHeader_t)) {
+        if (ret == 0 && ctx_new->header.headerSz > sizeof(ctx_new->header)) {
             XLOG(WOLFKM_LOG_ERROR, "Header size invalid! %u != %u\n",
-                (uint32_t)sizeof(VaultHeader_t), ctx_new->header.headerSz);
+                (uint32_t)sizeof(ctx_new->header), ctx_new->header.headerSz);
             ret = WOLFKM_BAD_FILE;
         }
 
@@ -195,7 +205,6 @@ int wolfVaultOpen(wolfVaultCtx** ctx, const char* file)
         ret = wolfVaultCreateNew(ctx_new, file);
         vaultSz = 0;
     }
-    
     if (ret == 0) {
         XLOG(WOLFKM_LOG_INFO, "Vault %s opened (%lu bytes)\n", file, vaultSz);
     }
@@ -213,46 +222,42 @@ int wolfVaultOpen(wolfVaultCtx** ctx, const char* file)
 }
 
 #ifdef WOLFKM_VAULT_ENC
+
 static int wolfVaultSetupKey(wolfVaultCtx* ctx)
 {
-    int ret = WOLFKM_NOT_COMPILED_IN;
+    int ret;
 
 #ifdef HAVE_AESGCM
+    byte key[AES_256_KEY_SIZE];
+    word32 keySz = (word32)sizeof(key);
+
     /* make sure key has been setup */
-    if (!ctx->aesInit) {
-        byte key[AES_256_KEY_SIZE];
-        word32 keySz = (word32)sizeof(key);
+    if (ctx->aesInit) {
+        return 0; /* already done */
+    }
 
-        /* get the key and init the structure */
-        ret = 0;
-        if (ctx->authCb == NULL) {
-            XLOG(WOLFKM_LOG_ERROR, "Vault authentication callback not setup!\n");
-            ret = WOLFKM_BAD_ARGS;
-        }
+    /* get the key and init the structure */
+    ret = 0;
+    if (ctx->authCb == NULL) {
+        XLOG(WOLFKM_LOG_ERROR, "Vault authentication callback not setup!\n");
+        ret = WOLFKM_BAD_ARGS;
+    }
 
-        if (ret == 0) {
-            memset(key, 0, sizeof(key));
-            ret = ctx->authCb(ctx, key, keySz, ctx->header.keyEnc,
-                (word32)sizeof(ctx->header.keyEnc), ctx->authCbCtx);
-        }
-        if (ret == 0) {
-            ret = wc_AesGcmSetKey(&ctx->aes, key, keySz);
-        }
-        if (ret == 0) {
-            ctx->aesInit = 1;
-        }
-        else {
-            XLOG(WOLFKM_LOG_ERROR, "Error %d setting up AES key!\n", ret);
-        }
+    if (ret == 0) {
+        memset(key, 0, sizeof(key));
+        ret = ctx->authCb(ctx, key, keySz, ctx->header.keyEnc,
+            (word32)sizeof(ctx->header.keyEnc), ctx->authCbCtx);
+    }
+    if (ret == 0) {
+        ret = wc_AesGcmSetKey(&ctx->aes, key, keySz);
+    }
+    if (ret == 0) {
+        ctx->aesInit = 1;
     }
     else {
-        ret = 0;
+        XLOG(WOLFKM_LOG_ERROR, "Error %d setting up AES key!\n", ret);
     }
-#else
-    #error Vault encryption requires AES GCM
 #endif
-
-    (void)ctx;
 
     return ret;
 }
@@ -265,17 +270,13 @@ static int wolfVaultDecrypt(wolfVaultCtx* ctx, byte* data, word32 dataSz,
 
 #ifdef HAVE_AESGCM
     byte iv[GCM_NONCE_MID_SZ];
+
     memset(iv, 0, sizeof(iv));
     memcpy(iv, &sector, sizeof(sector));
 
     ret = wc_AesGcmDecrypt(&ctx->aes, data, data, dataSz, iv, sizeof(iv),
         tag, tagSz, NULL, 0);
 #endif
-    (void)ctx;
-    (void)data;
-    (void)dataSz;
-    (void)sector;
-
     return ret;
 }
 
@@ -293,15 +294,11 @@ static int wolfVaultEncrypt(wolfVaultCtx* ctx, byte* data, word32 dataSz,
     ret = wc_AesGcmEncrypt(&ctx->aes, data, data, dataSz, iv, sizeof(iv),
         tag, tagSz, NULL, 0);
 #endif
-    (void)ctx;
-    (void)data;
-    (void)dataSz;
-    (void)sector;
-
     return ret;
 }
 #endif /* WOLFKM_VAULT_ENC */
 
+/* setup authentication callback to get encryption key */
 int wolfVaultAuth(wolfVaultCtx* ctx, VaultAuthCbFunc cb, void* cbCtx)
 {
     int ret;
@@ -311,7 +308,7 @@ int wolfVaultAuth(wolfVaultCtx* ctx, VaultAuthCbFunc cb, void* cbCtx)
     ret = wc_LockMutex(&ctx->lock);
     if (ret != 0)
         return ret;
-        
+
     ctx->authCb = cb;
     ctx->authCbCtx = cbCtx;
 
@@ -319,6 +316,7 @@ int wolfVaultAuth(wolfVaultCtx* ctx, VaultAuthCbFunc cb, void* cbCtx)
     return ret;
 }
 
+/* add item to vault */
 int wolfVaultAdd(wolfVaultCtx* ctx, word32 type, const byte* name, word32 nameSz,
     const byte* data, word32 dataSz)
 {
@@ -328,7 +326,7 @@ int wolfVaultAdd(wolfVaultCtx* ctx, word32 type, const byte* name, word32 nameSz
 
     if (ctx == NULL)
         return WOLFKM_BAD_ARGS;
-    
+
     ret = wc_LockMutex(&ctx->lock);
     if (ret != 0)
         return ret;
@@ -343,7 +341,7 @@ int wolfVaultAdd(wolfVaultCtx* ctx, word32 type, const byte* name, word32 nameSz
 #endif
 
     /* build vault item internal version */
-    memset(&ctx->item, 0, sizeof(VaultItem_t));
+    memset(&ctx->item, 0, sizeof(ctx->item));
     ctx->item.id = VAULT_ITEM_ID;
     ctx->item.type = type;
     if (nameSz > WOLFKM_VAULT_NAME_MAX_SZ)
@@ -385,7 +383,7 @@ int wolfVaultAdd(wolfVaultCtx* ctx, word32 type, const byte* name, word32 nameSz
     }
     if (ret == 0) {
         ret = (int)fwrite(dataEnc, 1, dataSz, ctx->fd);
-        ret = (ret == (int)dataSz) ? 0 : WOLFKM_BAD_FILE;        
+        ret = (ret == (int)dataSz) ? 0 : WOLFKM_BAD_FILE;
     }
     if (ret == 0) {
         ctx->header.vaultCount++;
@@ -401,7 +399,7 @@ int wolfVaultAdd(wolfVaultCtx* ctx, word32 type, const byte* name, word32 nameSz
 
     /* on success flush to disk */
     if (ret == 0) {
-        wolfVaultFlush(ctx);
+        ret = wolfVaultFlush(ctx);
     }
 
     return ret;
@@ -447,7 +445,7 @@ static int wolfVaultGetItemData(wolfVaultCtx* ctx, wolfVaultItem* item)
 #endif
 
     /* populate header */
-    memset(item, 0, sizeof(wolfVaultItem));
+    memset(item, 0, sizeof(*item));
     item->type = ctx->item.type;
     item->nameSz = ctx->item.nameSz;
     if (item->nameSz > WOLFKM_VAULT_NAME_MAX_SZ)
@@ -476,6 +474,7 @@ static int wolfVaultGetItemData(wolfVaultCtx* ctx, wolfVaultItem* item)
     return ret;
 }
 
+/* get copy of item from vault */
 int wolfVaultGet(wolfVaultCtx* ctx, wolfVaultItem* item, word32 type,
     const byte* name, word32 nameSz)
 {
@@ -508,26 +507,30 @@ int wolfVaultGet(wolfVaultCtx* ctx, wolfVaultItem* item, word32 type,
         itemPos += VAULT_ITEM_SZ(&ctx->item);
         /* check if at end of file */
         if (itemPos >= ctx->header.headerSz + ctx->header.vaultSz) {
-            if (++rolloverCount > 1) {
+            rolloverCount++;
+            if (rolloverCount > 1) {
                 ret = WOLFKM_BAD_FILE; /* not found */
                 break;
             }
             itemPos = ctx->header.headerSz; /* reset to top of data */
         }
     };
-    
+
     wc_UnLockMutex(&ctx->lock);
     return ret;
 }
 
-void wolfVaultFreeItem(wolfVaultItem* item)
+/* free a wolfVaultItem structure */
+int wolfVaultFreeItem(wolfVaultItem* item)
 {
     if (item && item->data != NULL) {
         free(item->data);
         item->data = NULL;
     }
+    return 0;
 }
 
+/* delete a single item from the vault */
 int wolfVaultDelete(wolfVaultCtx* ctx, word32 type, const byte* name,
     word32 nameSz)
 {
@@ -553,6 +556,7 @@ int wolfVaultDelete(wolfVaultCtx* ctx, word32 type, const byte* name,
     return WOLFKM_BAD_ARGS;
 }
 
+/* archive items older than specified date from vault */
 int wolfVaultArchive(wolfVaultCtx* ctx, word32 timestamp)
 {
     int ret;
@@ -575,26 +579,32 @@ int wolfVaultArchive(wolfVaultCtx* ctx, word32 timestamp)
     return WOLFKM_BAD_ARGS;
 }
 
-void wolfVaultClose(wolfVaultCtx* ctx)
+/* close vault file */
+int wolfVaultClose(wolfVaultCtx* ctx)
 {
-    if (ctx == NULL)
-        return;
+    int ret;
 
-    wolfVaultFlush(ctx);
+    if (ctx == NULL)
+        return WOLFKM_BAD_ARGS;
+
+    ret = wolfVaultFlush(ctx);
     fclose(ctx->fd);
     wc_FreeMutex(&ctx->lock);
     free(ctx);
+    return ret;
 }
 
-void wolfVaultPrintInfo(wolfVaultCtx* ctx)
+int wolfVaultPrintInfo(wolfVaultCtx* ctx)
 {
     if (ctx == NULL)
-        return;
+        return WOLFKM_BAD_ARGS;
 
     XLOG(WOLFKM_LOG_INFO, "Version: %d\n", ctx->header.version);
     XLOG(WOLFKM_LOG_INFO, "Header Size: %d\n", ctx->header.headerSz);
     XLOG(WOLFKM_LOG_INFO, "Item Count: %d\n", ctx->header.vaultCount);
-    XLOG(WOLFKM_LOG_INFO, "Total Size: %lu\n", ctx->header.vaultSz);    
+    XLOG(WOLFKM_LOG_INFO, "Total Size: %lu\n", ctx->header.vaultSz);
+
+    return 0;
 }
 
 static void wolfVaultPrintItem(enum log_level_t level, const char* desc,

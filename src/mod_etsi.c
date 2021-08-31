@@ -45,7 +45,7 @@ EtsiClientCtx* wolfEtsiClientNew(void)
     return client;
 }
 
-int wolfEtsiClientSetKey(EtsiClientCtx* client, const char* keyFile, 
+int wolfEtsiClientSetKey(EtsiClientCtx* client, const char* keyFile,
     const char* keyPassword, const char* certFile, int fileType)
 {
     int ret;
@@ -86,7 +86,7 @@ int wolfEtsiClientConnect(EtsiClientCtx* client, const char* host,
         XLOG(WOLFKM_LOG_INFO, "Connected to ETSI service\n");
     }
     else {
-        XLOG(WOLFKM_LOG_ERROR, "Failure connecting to ETSI service %d\n", ret);   
+        XLOG(WOLFKM_LOG_ERROR, "Failure connecting to ETSI service %d\n", ret);
     }
     wc_UnLockMutex(&client->lock);
 
@@ -134,7 +134,7 @@ int wolfEtsiClientMakeRequest(EtsiClientType type, const char* fingerprint,
     HttpMethodType httpType;
     headers[0].type = HTTP_HDR_ACCEPT;
     headers[0].string = "application/pkcs8";
- 
+
     /* Build HTTP ETSI request */
     if (type == ETSI_CLIENT_PUSH) {
         /* PUT for distributed push of keys */
@@ -197,7 +197,7 @@ static void ParseHttpResponseExpires(HttpRsp* rsp, EtsiKey* key, time_t now)
                                                             &tm) != NULL) {
                 key->expires = mktime(&tm);
                 /* sanity check time against current time */
-                /* if this is past current here then it has already 
+                /* if this is past current here then it has already
                     expired or is invalid */
                 if (key->expires < now) {
                     XLOG(WOLFKM_LOG_WARN,
@@ -267,7 +267,7 @@ static int EtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
         /* zero response means try again */
     } while (ret == 0);
     wc_UnLockMutex(&client->lock);
-    
+
     if (ret > 0) {
         /* parse HTTP server response */
         key->expires = 0;
@@ -295,7 +295,7 @@ static int EtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
     return ret;
 }
 
-int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key, 
+int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
     EtsiKeyType keyType, const char* fingerprint, const char* contextStr,
     int timeoutSec)
 {
@@ -309,7 +309,7 @@ int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
 
     /* Has current key expired? */
     now = wolfGetCurrentTimeT();
-    if (key->type == keyType && key->responseSz > 0 && 
+    if (key->type == keyType && key->responseSz > 0 &&
         key->expires > 0 && key->expires >= now) {
         /* key is still valid, use existing */
         /* return zero, indicating no key change */
@@ -448,26 +448,30 @@ EtsiKey* wolfEtsiKeyNew(void)
     return key;
 }
 
+int wolfEtsiGetPkType(EtsiKeyType type)
+{
+    if (type >= ETSI_KEY_TYPE_SECP160K1 &&
+        type <= ETSI_KEY_TYPE_BRAINPOOLP512R1) {
+        return WC_PK_TYPE_ECDH;
+    }
+    if (type >= ETSI_KEY_TYPE_FFDHE_2048 &&
+        type <= ETSI_KEY_TYPE_FFDHE_8192) {
+        return WC_PK_TYPE_DH;
+    }
+    if (type == ETSI_KEY_TYPE_X25519) {
+        return WC_PK_TYPE_CURVE25519;
+    }
+    if (type == ETSI_KEY_TYPE_X448) {
+        return WC_PK_TYPE_CURVE448;
+    }
+    return WC_PK_TYPE_NONE;
+}
+
 int wolfEtsiKeyGetPkType(EtsiKey* key)
 {
     if (key == NULL)
         return WOLFKM_BAD_ARGS;
-
-    if (key->type >= ETSI_KEY_TYPE_SECP160K1 && 
-        key->type <= ETSI_KEY_TYPE_BRAINPOOLP512R1) {
-        return WC_PK_TYPE_ECDH;
-    }
-    if (key->type >= ETSI_KEY_TYPE_FFDHE_2048 && 
-        key->type <= ETSI_KEY_TYPE_FFDHE_8192) {
-        return WC_PK_TYPE_DH;
-    }
-    if (key->type == ETSI_KEY_TYPE_X25519) {
-        return WC_PK_TYPE_CURVE25519;
-    }
-    if (key->type == ETSI_KEY_TYPE_X448) {
-        return WC_PK_TYPE_CURVE448;
-    }
-    return WC_PK_TYPE_NONE;
+    return wolfEtsiGetPkType(key->type);
 }
 
 const char* wolfEtsiKeyGetTypeStr(EtsiKeyType type)
@@ -535,7 +539,7 @@ int wolfEtsiKeyLoadCTX(EtsiKey* key, WOLFSSL_CTX* ctx)
     /* determine key algo */
     keyAlgo = wolfEtsiKeyGetPkType(key);
 
-    ret = wolfSSL_CTX_set_ephemeral_key(ctx, keyAlgo, 
+    ret = wolfSSL_CTX_set_ephemeral_key(ctx, keyAlgo,
         (char*)key->response, key->responseSz, WOLFSSL_FILETYPE_ASN1);
 #else
     ret = WOLFKM_NOT_COMPILED_IN;
@@ -557,7 +561,7 @@ int wolfEtsiKeyLoadSSL(EtsiKey* key, WOLFSSL* ssl)
     /* determine key algo */
     keyAlgo = wolfEtsiKeyGetPkType(key);
 
-    ret = wolfSSL_set_ephemeral_key(ssl, keyAlgo, 
+    ret = wolfSSL_set_ephemeral_key(ssl, keyAlgo,
         (char*)key->response, key->responseSz, WOLFSSL_FILETYPE_ASN1);
     if (ret == 0) {
         /* TODO: handle return code */
@@ -698,7 +702,7 @@ static int GenNewKeyEcc(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
         XLOG(WOLFKM_LOG_ERROR, "ECC Init Failed! %d\n", ret);
         return WOLFKM_BAD_KEY;
     }
-        
+
     ret = wc_ecc_make_key_ex(rng, keySize, &ecc, curveId);
     if (ret == 0) {
         /* Export as DER IETF RFC 5915 */
@@ -713,10 +717,11 @@ static int GenNewKeyEcc(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
     if (ret == 0) {
         /* export public */
         byte pub[MAX_ECC_BYTES*2];
-        word32 pubXLen = sizeof(pub)/2, pubYLen = sizeof(pub)/2;
+        word32 pubXLen = (word32)sizeof(pub)/2;
+        word32 pubYLen = (word32)sizeof(pub)/2;
         ret = wc_ecc_export_ex(&ecc,
             pub,         &pubXLen,
-            pub+keySize, &pubYLen, 
+            pub+keySize, &pubYLen,
             NULL, NULL, WC_TYPE_UNSIGNED_BIN);
         if (ret == 0) {
             /* compute fingerprint for key */
@@ -734,6 +739,96 @@ static int GenNewKeyEcc(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
     return ret;
 }
 #endif
+
+#ifdef HAVE_CURVE25519
+static int GenNewKeyCurve25519(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
+{
+    int ret;
+    curve25519_key curveKey;
+
+    ret = wc_curve25519_init(&curveKey);
+    if (ret != 0) {
+        XLOG(WOLFKM_LOG_ERROR, "Curve25519 init failed! %d\n", ret);
+        return WOLFKM_BAD_KEY;
+    }
+
+    ret = wc_curve25519_make_key(rng, CURVE25519_KEYSIZE, &curveKey);
+    if (ret == 0) {
+        key->responseSz = sizeof(key->response);
+        ret = wc_Curve25519PrivateKeyToDer(&curveKey, (byte*)key->response,
+            key->responseSz);
+        if (ret >= 0) {
+            key->responseSz = ret;
+            ret = 0;
+        }
+    }
+    if (ret == 0) {
+        /* export public */
+        byte pub[CURVE25519_KEYSIZE];
+        word32 pubLen = (word32)sizeof(pub);
+        ret = wc_curve25519_export_public_ex(&curveKey, pub, &pubLen,
+            EC25519_LITTLE_ENDIAN);
+        if (ret == 0) {
+            /* compute fingerprint for key */
+            word32 fpSz = (word32)sizeof(key->fingerprint);
+            ret = wolfKeyCalcFingerprint(keyType, pub, pubLen,
+                key->fingerprint, &fpSz);
+        }
+    }
+    wc_curve25519_free(&curveKey);
+
+    if (ret != 0) {
+        XLOG(WOLFKM_LOG_ERROR, "Curve25519 Key Generation Failed! %d\n", ret);
+    }
+
+    return ret;
+}
+#endif /* HAVE_CURVE25519 */
+
+#ifdef HAVE_CURVE448
+static int GenNewKeyCurve448(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
+{
+    int ret;
+    curve448_key curveKey;
+
+    ret = wc_curve448_init(&curveKey);
+    if (ret != 0) {
+        XLOG(WOLFKM_LOG_ERROR, "Curve448 init failed! %d\n", ret);
+        return WOLFKM_BAD_KEY;
+    }
+
+    ret = wc_curve448_make_key(rng, CURVE448_KEY_SIZE, &curveKey);
+    if (ret == 0) {
+        key->responseSz = sizeof(key->response);
+        ret = wc_Curve448PrivateKeyToDer(&curveKey, (byte*)key->response,
+            key->responseSz);
+        if (ret >= 0) {
+            key->responseSz = ret;
+            ret = 0;
+        }
+    }
+    if (ret == 0) {
+        /* export public */
+        byte pub[CURVE448_PUB_KEY_SIZE];
+        word32 pubLen = (word32)sizeof(pub);
+        ret = wc_curve448_export_public_ex(&curveKey, pub, &pubLen,
+            EC448_LITTLE_ENDIAN);
+        if (ret == 0) {
+            /* compute fingerprint for key */
+            word32 fpSz = (word32)sizeof(key->fingerprint);
+            ret = wolfKeyCalcFingerprint(keyType, pub, pubLen,
+                key->fingerprint, &fpSz);
+        }
+    }
+    wc_curve448_free(&curveKey);
+
+    if (ret != 0) {
+        XLOG(WOLFKM_LOG_ERROR, "Curve448 Key Generation Failed! %d\n", ret);
+    }
+
+    return ret;
+}
+#endif /* HAVE_CURVE448 */
 
 #if !defined(NO_DH) && defined(WOLFSSL_DH_EXTRA)
 static int GenNewKeyDh(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
@@ -786,7 +881,7 @@ static int GenNewKeyDh(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
     }
     if (ret == 0) {
         /* export DH key as DER */
-        /* Note: Proper support for wc_DhPrivKeyToDer was added v4.8.0 or 
+        /* Note: Proper support for wc_DhPrivKeyToDer was added v4.8.0 or
          *       later (see PR 3832) */
         key->responseSz = sizeof(key->response);
         ret = wc_DhPrivKeyToDer(&dh, (byte*)key->response, &key->responseSz);
@@ -806,32 +901,30 @@ static int GenNewKeyDh(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
 int wolfEtsiKeyGen(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
 {
     int ret = WOLFKM_NOT_COMPILED_IN;
- 
-    if (key == NULL || rng == NULL) 
+
+    if (key == NULL || rng == NULL)
         return WOLFKM_BAD_ARGS;
 
 #ifdef HAVE_ECC
-    if (keyType >= ETSI_KEY_TYPE_SECP160K1 && 
+    if (keyType >= ETSI_KEY_TYPE_SECP160K1 &&
         keyType <= ETSI_KEY_TYPE_BRAINPOOLP512R1) {
         ret = GenNewKeyEcc(key, keyType, rng);
     }
 #endif
 #if !defined(NO_DH) && defined(WOLFSSL_DH_EXTRA)
-    if (keyType >= ETSI_KEY_TYPE_FFDHE_2048 && 
+    if (keyType >= ETSI_KEY_TYPE_FFDHE_2048 &&
         keyType <= ETSI_KEY_TYPE_FFDHE_8192) {
         ret = GenNewKeyDh(key, keyType, rng);
     }
 #endif
 #ifdef HAVE_CURVE25519
     if (keyType == ETSI_KEY_TYPE_X25519) {
-        /* TODO: X25519 Key Gen */
+        ret = GenNewKeyCurve25519(key, keyType, rng);
     }
 #endif
 #ifdef HAVE_CURVE448
     if (keyType == ETSI_KEY_TYPE_X448) {
-        /* TODO: X448 Key Gen */
-        //curveId = ECC_X448;
-        //keySize = 56;
+        ret = GenNewKeyCurve448(key, keyType, rng);
     }
 #endif
 
@@ -857,7 +950,7 @@ int wolfEtsiCalcTlsFingerprint(EtsiKeyType keyType,
     memset(fp, 0, sizeof(fp));
 
 #ifdef HAVE_ECC
-    if (keyType >= ETSI_KEY_TYPE_SECP160K1 && 
+    if (keyType >= ETSI_KEY_TYPE_SECP160K1 &&
         keyType <= ETSI_KEY_TYPE_BRAINPOOLP512R1)
     {
         /* For ECC it is x963 - 1 byte (point type), pub x, pub y */
@@ -875,11 +968,11 @@ int wolfEtsiCalcTlsFingerprint(EtsiKeyType keyType,
             word32 pubXLen = sizeof(pubKey)/2, pubYLen = sizeof(pubKey)/2;
             ret = wc_ecc_import_x963_ex(pub, pubSz, &key, curveId);
             if (ret == 0) {
-                /* export public - do not trust length from wc_ecc_export_ex, 
+                /* export public - do not trust length from wc_ecc_export_ex,
                  * some older versions do not return correct length for hex string */
                 ret = wc_ecc_export_ex(&key,
                     pubKey,         &pubXLen,
-                    pubKey+keySize, &pubYLen, 
+                    pubKey+keySize, &pubYLen,
                     NULL, NULL, WC_TYPE_UNSIGNED_BIN);
             }
             if (ret == 0) {
@@ -892,7 +985,7 @@ int wolfEtsiCalcTlsFingerprint(EtsiKeyType keyType,
     }
 #endif
 #if !defined(NO_DH) && defined(WOLFSSL_DH_EXTRA)
-    if (keyType >= ETSI_KEY_TYPE_FFDHE_2048 && 
+    if (keyType >= ETSI_KEY_TYPE_FFDHE_2048 &&
         keyType <= ETSI_KEY_TYPE_FFDHE_8192)
     {
         /* For DH it is the DH public key as unsigned bin */
@@ -905,14 +998,14 @@ int wolfEtsiCalcTlsFingerprint(EtsiKeyType keyType,
 #endif
 #ifdef HAVE_CURVE25519
     if (keyType == ETSI_KEY_TYPE_X25519) {
-        /* TODO: X25519 Key Gen */
+        /* For Curve25519 is 32 bytes as unsigned bin */
+        ret = wolfKeyCalcFingerprint(keyType, pub, pubSz, fp, &fpSz);
     }
 #endif
 #ifdef HAVE_CURVE448
     if (keyType == ETSI_KEY_TYPE_X448) {
-        /* TODO: X448 Key Gen */
-        //curveId = ECC_X448;
-        //keySize = 56;
+        /* For Curve448 is 56 bytes as unsigned bin */
+        ret = wolfKeyCalcFingerprint(keyType, pub, pubSz, fp, &fpSz);
     }
 #endif
 
@@ -950,7 +1043,6 @@ int wolfEtsiKeyComputeName(EtsiKey* key)
     keyAlgo = wolfEtsiKeyGetPkType(key);
 #ifdef HAVE_ECC
     if (keyAlgo == WC_PK_TYPE_ECDH) {
-        /* example for loading ECC key */
         ecc_key ecKey;
         ret = wc_ecc_init(&ecKey);
         if (ret == 0) {
@@ -959,11 +1051,12 @@ int wolfEtsiKeyComputeName(EtsiKey* key)
                 key->responseSz);
             if (ret == 0) {
                 byte pub[MAX_ECC_BYTES*2];
-                word32 pubXLen = sizeof(pub)/2, pubYLen = sizeof(pub)/2;
+                word32 pubXLen = (word32)sizeof(pub)/2;
+                word32 pubYLen = (word32)sizeof(pub)/2;
                 word32 keySize = wc_ecc_size(&ecKey);
                 ret = wc_ecc_export_ex(&ecKey,
                     pub, &pubXLen,
-                    pub + keySize, &pubYLen, 
+                    pub + keySize, &pubYLen,
                     NULL, NULL, WC_TYPE_UNSIGNED_BIN);
                 if (ret == 0) {
                     /* compute fingerprint for key */
@@ -977,7 +1070,6 @@ int wolfEtsiKeyComputeName(EtsiKey* key)
 #endif
 #if !defined(NO_DH) && defined(WOLFSSL_DH_EXTRA)
     if (keyAlgo == WC_PK_TYPE_DH) {
-        /* example for loading DHE key */
         DhKey dhKey;
         ret = wc_InitDhKey(&dhKey);
         if (ret == 0) {
@@ -986,7 +1078,7 @@ int wolfEtsiKeyComputeName(EtsiKey* key)
                 key->responseSz);
             if (ret == 0) {
                 byte pubKey[MAX_DH_PUB_SZ];
-                word32 pubKeyLen = sizeof(pubKey);
+                word32 pubKeyLen = (word32)sizeof(pubKey);
                 ret = wc_export_int(&dhKey.pub, pubKey, &pubKeyLen,
                     MAX_DH_PUB_SZ, WC_TYPE_UNSIGNED_BIN);
                 if (ret == 0) {
@@ -1001,16 +1093,49 @@ int wolfEtsiKeyComputeName(EtsiKey* key)
 #endif
 #ifdef HAVE_CURVE25519
     if (keyAlgo == WC_PK_TYPE_CURVE25519) {
-        /* TODO: add example for loading X25519 key and print */
-        //curve25519_key x25519;
-        XLOG(WOLFKM_LOG_INFO, "X25519 Pub: TODO\n");
+        curve25519_key curveKey;
+        ret = wc_curve25519_init(&curveKey);
+        if (ret == 0) {
+            word32 idx = 0;
+            ret = wc_Curve25519PrivateKeyDecode((byte*)key->response, &idx,
+                &curveKey, key->responseSz);
+            if (ret == 0) {
+                byte pub[CURVE25519_KEYSIZE];
+                word32 pubLen = (word32)sizeof(pub);
+                ret = wc_curve25519_export_public_ex(&curveKey, pub, &pubLen,
+                    EC25519_LITTLE_ENDIAN);
+                if (ret == 0) {
+                    /* compute fingerprint for key */
+                    ret = wolfKeyCalcFingerprint(key->type, pub, pubLen,
+                        fp, &fpSz);
+                }
+            }
+            wc_curve25519_free(&curveKey);
+        }
     }
 #endif
 #ifdef HAVE_CURVE448
     if (keyAlgo == WC_PK_TYPE_CURVE448) {
-        /* TODO: add example for loading X448 key and print */
-        //curve448_key x448;
-        XLOG(WOLFKM_LOG_INFO, "X448 Pub: TODO\n");
+        curve448_key curveKey;
+        ret = wc_curve448_init(&curveKey);
+        if (ret == 0) {
+            word32 idx = 0;
+            ret = wc_Curve448PrivateKeyDecode((byte*)key->response, &idx,
+                &curveKey, key->responseSz);
+            if (ret == 0) {
+                byte pub[CURVE448_PUB_KEY_SIZE];
+                word32 pubLen = (word32)sizeof(pub);
+                ret = wc_curve448_export_public_ex(&curveKey, pub, &pubLen,
+                    EC448_LITTLE_ENDIAN);
+                if (ret == 0) {
+                    /* compute fingerprint for key */
+                    ret = wolfKeyCalcFingerprint(key->type, pub, pubLen,
+                        fp, &fpSz);
+                }
+            }
+            wc_curve448_free(&curveKey);
+        }
+    }
 #endif
 
     key->fingerprintSz = fpSz;

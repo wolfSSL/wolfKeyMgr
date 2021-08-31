@@ -114,12 +114,12 @@ int wolfSockConnect(WKM_SOCKET_T* sockFd, const char* ip, word16 port,
     if (sockFd == NULL) {
         return WOLFKM_BAD_ARGS;
     }
-    
+
     ret = build_addr(&addr, ip, port);
     if (ret != 0) {
         return ret;
     }
-    
+
     ret = tcp_socket(sockFd);
     if (ret == 0) {
         if (timeoutSec > 0) {
@@ -145,7 +145,7 @@ int wolfSockConnect(WKM_SOCKET_T* sockFd, const char* ip, word16 port,
     }
 
     if (err != 0) {
-        XLOG(WOLFKM_LOG_ERROR, "tcp connect failed: %d (%s)\n", 
+        XLOG(WOLFKM_LOG_ERROR, "tcp connect failed: %d (%s)\n",
             err, strerror(err));
         ret = err;
     }
@@ -162,12 +162,12 @@ int wolfSockListen(WKM_SOCKET_T* listenFd, word16 port)
     if (listenFd == NULL) {
         return WOLFKM_BAD_ARGS;
     }
-    
+
     ret = build_addr(&addr, NULL, port);
     if (ret != 0) {
         return ret;
     }
-    
+
     ret = tcp_socket(listenFd);
     if (ret == 0) {
         ret = bind(*listenFd, (const struct sockaddr*)&addr, sizeof(addr));
@@ -175,10 +175,10 @@ int wolfSockListen(WKM_SOCKET_T* listenFd, word16 port)
     if (ret == 0) {
         ret = listen(*listenFd, SOCK_LISTEN_MAX_QUEUE);
     }
-    
+
     if (ret < 0) {
         int err = wolfSocketLastError(ret);
-        XLOG(WOLFKM_LOG_ERROR, "tcp listen failed: %d err %d (%s)\n", 
+        XLOG(WOLFKM_LOG_ERROR, "tcp listen failed: %d err %d (%s)\n",
             ret, err, strerror(err));
         ret = err;
     }
@@ -187,7 +187,7 @@ int wolfSockListen(WKM_SOCKET_T* listenFd, word16 port)
 
 }
 
-int wolfSockAccept(WKM_SOCKET_T listenFd, WKM_SOCKET_T* clientFd, 
+int wolfSockAccept(WKM_SOCKET_T listenFd, WKM_SOCKET_T* clientFd,
     SOCKADDR_IN_T* clientAddr, int timeoutSec)
 {
     int ret = 0;
@@ -209,7 +209,7 @@ int wolfSockAccept(WKM_SOCKET_T listenFd, WKM_SOCKET_T* clientFd,
         *clientFd = accept(listenFd, (struct sockaddr*)clientAddr, &clientAddrLen);
         if (WKM_SOCKET_IS_INVALID(*clientFd)) {
             int err = wolfSocketLastError(ret);
-            XLOG(WOLFKM_LOG_ERROR, "tcp accept failed: %d (%s)\n", 
+            XLOG(WOLFKM_LOG_ERROR, "tcp accept failed: %d (%s)\n",
                 err, strerror(err));
             ret = err;
         }

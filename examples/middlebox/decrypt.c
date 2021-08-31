@@ -19,9 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
-/* Support for ETSI Key Manager */
+/* Support for ETSI Key Manager Middle-box Decryption */
 
-#include "wolfkeymgr/options.h"
 #include "wolfkeymgr/mod_etsi.h"
 #include "examples/middlebox/decrypt.h"
 #include "examples/test_config.h"
@@ -57,134 +56,70 @@ enum {
     NULL_IF_FRAME_LEN =   4,   /* no link interface frame length  */
 };
 
+/* Globals */
+static pcap_t* gPcap = NULL;
+static pcap_if_t* gPcapAllDevs = NULL;
+static int gIsOfflinePcap = 0;
 
-
-static pcap_t* pcap = NULL;
-static pcap_if_t* alldevs = NULL;
-static int isOfflinePcap = 0;
-
-static EtsiClientCtx* gEtsiClient;
-
-static void etsi_client_cleanup(void)
-{
-    if (gEtsiClient) {
-        wolfEtsiClientFree(gEtsiClient);
-        gEtsiClient = NULL;
-
-        wolfEtsiClientCleanup();
-    }
-}
-static int etsi_client_connect(char* urlStr)
-{
-    int ret = 0;
-    static HttpUrl url;
-    
-    /* setup key manager connection */
-    if (gEtsiClient == NULL) {
-        wolfEtsiClientInit();
-
-        gEtsiClient = wolfEtsiClientNew();
-        if (gEtsiClient) {
-            wolfEtsiClientAddCA(gEtsiClient, ETSI_TEST_CLIENT_CA);
-            wolfEtsiClientSetKey(gEtsiClient,
-                ETSI_TEST_CLIENT_KEY, ETSI_TEST_CLIENT_PASS,
-                ETSI_TEST_CLIENT_CERT, WOLFSSL_FILETYPE_PEM);
-
-            if (urlStr) {
-                memset(&url, 0, sizeof(url));
-                wolfHttpUrlDecode(&url, urlStr);
-            }
-
-            ret = wolfEtsiClientConnect(gEtsiClient, url.domain, url.port,
-                ETSI_TEST_TIMEOUT_MS);
-            if (ret != 0) {
-                printf("Error connecting to ETSI server! %d\n", ret);
-                
-                etsi_client_cleanup();
-            }
-        }
-        else {
-            ret = WOLFKM_BAD_MEMORY;
-        }
-    }
-    return ret;
-}
-
-static int etsi_client_get(char* urlStr, EtsiKey* key)
-{
-    int ret;
-    
-    ret = etsi_client_connect(urlStr);
-    if (ret == 0 && key) {
-        ret = wolfEtsiClientGet(gEtsiClient, key, ETSI_TEST_KEY_TYPE, 
-            NULL, NULL, ETSI_TEST_TIMEOUT_MS);
-        /* positive return means new key returned */
-        /* zero means, same key is used */
-        /* negative means error */
-        if (ret < 0) {
-            printf("Error getting ETSI static ephemeral key! %d\n", ret);
-            etsi_client_cleanup();
-        }
-        else {
-            printf("Got ETSI static ephemeral key (%d bytes)\n",
-                key->responseSz);
-            wolfEtsiKeyPrint(key);
-        }
-    }
-    return ret;
-}
-
+/* Private local functions */
 #ifdef WOLFSSL_SNIFFER_KEY_CALLBACK
-static int etsi_client_find(char* urlStr, EtsiKey* key, int namedGroup, 
-    const byte* pub, word32 pubSz)
-{
-    int ret;
-    
-    ret = etsi_client_connect(urlStr);
-    if (ret == 0 && key) {
-        char fpStr[ETSI_MAX_FINGERPRINT_STR];
-        word32 fpStrSz = (word32)sizeof(fpStr);
-        ret = wolfEtsiCalcTlsFingerprint((EtsiKeyType)namedGroup, pub, pubSz,
-            fpStr, &fpStrSz);
-        if (ret == 0) {
-            ret = wolfEtsiClientFind(gEtsiClient, key, namedGroup, fpStr,
-                NULL, ETSI_TEST_TIMEOUT_MS);
-        }
-        if (ret < 0) {
-            printf("Error finding ETSI static ephemeral key! %d\n", ret);
-            etsi_client_cleanup();
-        }
-        else {
-            printf("Found ETSI static ephemeral key (%d bytes)\n",
-                key->responseSz);
-            wolfEtsiKeyPrint(key);
-        }
-        (void)fpStrSz;
-    }
-    return ret;
-}
-
 static int myKeyCb(void* vSniffer, int namedGroup,
     const unsigned char* srvPub, unsigned int srvPubSz,
     const unsigned char* cliPub, unsigned int cliPubSz,
     DerBuffer* privKey, void* cbCtx, char* error)
 {
     int ret;
-    static EtsiKey key;
+    int keyType;
+    EtsiKey* key = NULL;
+#ifdef HAVE_ECC
+    static EtsiKey keyEcc;
+#endif
+#ifndef NO_DH
+    static EtsiKey keyDh;
+#endif
+#ifdef HAVE_CURVE25519
+    static EtsiKey keyX25519;
+#endif
 
-    ret = etsi_client_find(NULL, &key, namedGroup, srvPub, srvPubSz);
+    /* lookup based on key type */
+    keyType = wolfEtsiGetPkType(namedGroup);
+    switch (keyType) {
+        case WC_PK_TYPE_ECDH:
+        #ifdef HAVE_ECC
+            key = &keyEcc;
+        #endif
+            break;
+        case WC_PK_TYPE_DH:
+        #ifndef NO_DH
+            key = &keyDh;
+        #endif
+            break;
+        case WC_PK_TYPE_CURVE25519:
+        #ifdef HAVE_CURVE25519
+            key = &keyX25519;
+        #endif
+            break;
+        case WC_PK_TYPE_CURVE448:
+            /* curve448 not yet supported in sniffer */
+        default:
+            /* not supported */
+            key = NULL;
+            break;
+    }
+    if (key == NULL) {
+        return 0; /* return, but do not fail */
+    }
+
+    ret = etsi_client_find(NULL, key, namedGroup, srvPub, srvPubSz);
     if (ret >= 0) {
         byte* keyBuf = NULL;
         word32 keySz = 0;
-        wolfEtsiKeyGetPtr(&key, &keyBuf, &keySz);
+        wolfEtsiKeyGetPtr(key, &keyBuf, &keySz);
 
-        if (privKey->length != keySz) {
-            void* heap = privKey->heap;
-            wc_FreeDer(&privKey);
-            wc_AllocDer(&privKey, keySz, PRIVATEKEY_TYPE, heap);
+        if (privKey->length <= keySz) {
+            memcpy(privKey->buffer, keyBuf, keySz);
         }
-        memcpy(privKey->buffer, keyBuf, keySz);
-        ret = 0; /* mark success */
+        ret = 0; /* mark success - don't fail */
     }
 
     (void)vSniffer;
@@ -195,19 +130,18 @@ static int myKeyCb(void* vSniffer, int namedGroup,
 
     return ret;
 }
-#endif
+#endif /* WOLFSSL_SNIFFER_KEY_CALLBACK */
 
 static void FreeAll(void)
 {
-    if (pcap)
-        pcap_close(pcap);
-    if (alldevs)
-        pcap_freealldevs(alldevs);
+    if (gPcap)
+        pcap_close(gPcap);
+    if (gPcapAllDevs)
+        pcap_freealldevs(gPcapAllDevs);
 #ifndef _WIN32
     ssl_FreeSniffer();
 #endif
 }
-
 
 #ifdef WOLFSSL_SNIFFER_STATS
 static void DumpStats(void)
@@ -215,45 +149,44 @@ static void DumpStats(void)
     SSLStats sslStats;
     ssl_ReadStatistics(&sslStats);
 
-    printf("SSL Stats (sslStandardConns):%lu\n",
+    fprintf(stderr, "SSL Stats (sslStandardConns):%lu\n",
             sslStats.sslStandardConns);
-    printf("SSL Stats (sslClientAuthConns):%lu\n",
+    fprintf(stderr, "SSL Stats (sslClientAuthConns):%lu\n",
             sslStats.sslClientAuthConns);
-    printf("SSL Stats (sslResumedConns):%lu\n",
+    fprintf(stderr, "SSL Stats (sslResumedConns):%lu\n",
             sslStats.sslResumedConns);
-    printf("SSL Stats (sslEphemeralMisses):%lu\n",
+    fprintf(stderr, "SSL Stats (sslEphemeralMisses):%lu\n",
             sslStats.sslEphemeralMisses);
-    printf("SSL Stats (sslResumeMisses):%lu\n",
+    fprintf(stderr, "SSL Stats (sslResumeMisses):%lu\n",
             sslStats.sslResumeMisses);
-    printf("SSL Stats (sslCiphersUnsupported):%lu\n",
+    fprintf(stderr, "SSL Stats (sslCiphersUnsupported):%lu\n",
             sslStats.sslCiphersUnsupported);
-    printf("SSL Stats (sslKeysUnmatched):%lu\n",
+    fprintf(stderr, "SSL Stats (sslKeysUnmatched):%lu\n",
             sslStats.sslKeysUnmatched);
-    printf("SSL Stats (sslKeyFails):%lu\n",
+    fprintf(stderr, "SSL Stats (sslKeyFails):%lu\n",
             sslStats.sslKeyFails);
-    printf("SSL Stats (sslDecodeFails):%lu\n",
+    fprintf(stderr, "SSL Stats (sslDecodeFails):%lu\n",
             sslStats.sslDecodeFails);
-    printf("SSL Stats (sslAlerts):%lu\n",
+    fprintf(stderr, "SSL Stats (sslAlerts):%lu\n",
             sslStats.sslAlerts);
-    printf("SSL Stats (sslDecryptedBytes):%lu\n",
+    fprintf(stderr, "SSL Stats (sslDecryptedBytes):%lu\n",
             sslStats.sslDecryptedBytes);
-    printf("SSL Stats (sslEncryptedBytes):%lu\n",
+    fprintf(stderr, "SSL Stats (sslEncryptedBytes):%lu\n",
             sslStats.sslEncryptedBytes);
-    printf("SSL Stats (sslEncryptedPackets):%lu\n",
+    fprintf(stderr, "SSL Stats (sslEncryptedPackets):%lu\n",
             sslStats.sslEncryptedPackets);
-    printf("SSL Stats (sslDecryptedPackets):%lu\n",
+    fprintf(stderr, "SSL Stats (sslDecryptedPackets):%lu\n",
             sslStats.sslDecryptedPackets);
-    printf("SSL Stats (sslKeyMatches):%lu\n",
+    fprintf(stderr, "SSL Stats (sslKeyMatches):%lu\n",
             sslStats.sslKeyMatches);
-    printf("SSL Stats (sslEncryptedConns):%lu\n",
+    fprintf(stderr, "SSL Stats (sslEncryptedConns):%lu\n",
             sslStats.sslEncryptedConns);
 }
 #endif /* WOLFSSL_SNIFFER_STATS */
 
-
 static void sig_handler(const int sig)
 {
-    printf("SIGINT handled = %d.\n", sig);
+    fprintf(stderr, "SIGINT handled = %d.\n", sig);
     FreeAll();
 #ifdef WOLFSSL_SNIFFER_STATS
     DumpStats();
@@ -275,7 +208,6 @@ static void err_sys(const char* msg)
     #define SNPRINTF snprintf
 #endif
 
-
 static char* iptos(const struct in_addr* addr)
 {
     static char output[32];
@@ -292,11 +224,44 @@ static const char* ip6tos(const struct in6_addr* addr)
     return inet_ntop(AF_INET6, addr, output, 42);
 }
 
+typedef struct {
+    const char* name;
+    const char* server;
+    const char* passwd;
+    char* err;
+    int port;
+} LoadKeyInfo_t;
 
-/* try and load as both static ephemeral and private key */
-/* only fail if no key is loaded */
-/* Allow comma seperated list of files */
-static int load_key(const char* name, const char* server, int port, 
+static int etsi_key_cb(EtsiKey* key, void* cbCtx)
+{
+    int ret;
+    byte* keyBuf = NULL;
+    word32 keySz = 0;
+    LoadKeyInfo_t* info = (LoadKeyInfo_t*)cbCtx;
+
+    wolfEtsiKeyGetPtr(key, &keyBuf, &keySz);
+#ifdef HAVE_SNI
+    ret = ssl_SetNamedEphemeralKeyBuffer(info->name, info->server, info->port,
+        (char*)keyBuf, keySz, FILETYPE_DER, info->passwd, info->err);
+#else
+    ret = ssl_SetEphemeralKeyBuffer(info->server, info->port,
+        (char*)keyBuf, keySz, FILETYPE_DER, info->passwd, info->err);
+#endif
+
+    if (ret != 0) {
+        /* log error, but do not fail */
+        fprintf(stderr, "Error loading private key %s: ret %d\n",
+            wolfEtsiKeyGetTypeStr(key->type), ret);
+        ret = 0; /* this is okay */
+    }
+    return ret;
+}
+
+/* try and load as both static ephemeral and private key
+ * only fail if no key is loaded
+ * Allow comma seperated list of files
+ */
+static int load_key(const char* name, const char* server, int port,
     const char* keyFiles, const char* passwd, char* err)
 {
     int ret = -1;
@@ -307,24 +272,16 @@ static int load_key(const char* name, const char* server, int port,
     while (keyFile != NULL) {
         /* is URL? */
         if (strncmp(keyFile, "https://", 8) == 0) {
-            EtsiKey key;
-            memset(&key, 0, sizeof(key));
+            LoadKeyInfo_t info;
+            info.name = name;
+            info.server = server;
+            info.port = port;
+            info.passwd = passwd;
+            info.err = err;
             /* setup connection */
-            ret = etsi_client_get(keyFile, &key);
+            ret = etsi_client_get_all(keyFile, etsi_key_cb, &info);
             if (ret < 0) {
-                printf("Error connecting to ETSI server: %s\n", keyFile);
-            }
-            else {
-                byte* keyBuf = NULL;
-                word32 keySz = 0;
-                wolfEtsiKeyGetPtr(&key, &keyBuf, &keySz);
-            #ifdef HAVE_SNI
-                ret = ssl_SetNamedEphemeralKeyBuffer(name, server, port,
-                    (char*)keyBuf, keySz, FILETYPE_DER, passwd, err);
-            #else
-                ret = ssl_SetEphemeralKeyBuffer(server, port,
-                    (char*)keyBuf, keySz, FILETYPE_DER, passwd, err);
-            #endif
+                fprintf(stderr, "Error connecting to ETSI server: %s\n", keyFile);
             }
         }
         else {
@@ -340,9 +297,9 @@ static int load_key(const char* name, const char* server, int port,
         }
         if (ret == 0)
             loadCount++;
-        
+
         if (loadCount == 0) {
-            printf("Failed loading private key %s: ret %d\n", keyFile, ret);
+            fprintf(stderr, "Failed loading private key %s: ret %d\n", keyFile, ret);
             ret = -1;
         }
         else {
@@ -353,7 +310,10 @@ static int load_key(const char* name, const char* server, int port,
         keyFile = strtok_r(NULL, ",", &ptr);
     }
 
-    (void)name;
+#ifndef HAVE_SNI
+    (void)name; /* applies to SNI only */
+#endif
+
     return ret;
 }
 
@@ -403,30 +363,31 @@ int middlebox_decrypt_test(int argc, char** argv)
 
     if (argc == 1) {
         char cmdLineArg[128];
+
         /* normal case, user chooses device and port */
-
-        if (pcap_findalldevs(&alldevs, err) == -1)
+        if (pcap_findalldevs(&gPcapAllDevs, err) == -1) {
             err_sys("Error in pcap_findalldevs");
+        }
 
-        for (d = alldevs; d; d=d->next) {
+        for (d = gPcapAllDevs; d; d=d->next) {
             printf("%d. %s", ++i, d->name);
             if (strcmp(d->name, "lo") == 0 || strcmp(d->name, "lo0") == 0) {
                 defDev = i;
             }
-            if (d->description)
-                printf(" (%s)\n", d->description);
-            else
-                printf(" (No description available)\n");
+            printf(" (%s)\n", (d->description) ? d->description :
+                "No description available");
         }
 
-        if (i == 0)
+        if (i == 0) {
             err_sys("No interfaces found! Make sure pcap or WinPcap is"
                     " installed correctly and you have sufficient permissions");
+        }
 
         printf("Enter the interface number (1-%d) [default: %d]: ", i, defDev);
         memset(cmdLineArg, 0, sizeof(cmdLineArg));
-        if (fgets(cmdLineArg, sizeof(cmdLineArg), stdin))
+        if (fgets(cmdLineArg, sizeof(cmdLineArg), stdin)) {
             inum = atoi(cmdLineArg);
+        }
         if (inum == 0) {
             if (defDev == 0) defDev = 1;
             inum = defDev;
@@ -436,11 +397,12 @@ int middlebox_decrypt_test(int argc, char** argv)
         }
 
         /* Jump to the selected adapter */
-        for (d = alldevs, i = 0; i < inum - 1; d = d->next, i++);
+        for (d = gPcapAllDevs, i = 0; i < inum - 1; d = d->next, i++);
 
-        pcap = pcap_create(d->name, err);
-
-        if (pcap == NULL) printf("pcap_create failed %s\n", err);
+        gPcap = pcap_create(d->name, err);
+        if (gPcap == NULL) {
+            fprintf(stderr, "pcap_create failed %s\n", err);
+        }
 
         /* print out addresses for selected interface */
         for (a = d->addresses; a; a = a->next) {
@@ -455,25 +417,30 @@ int middlebox_decrypt_test(int argc, char** argv)
                 printf("server = %s\n", server);
             }
         }
-        if (server == NULL)
+        if (server == NULL) {
             err_sys("Unable to get device IPv4 or IPv6 address");
+        }
 
-        ret = pcap_set_snaplen(pcap, 65536);
-        if (ret != 0) printf("pcap_set_snaplen failed %s\n", pcap_geterr(pcap));
-
-        ret = pcap_set_timeout(pcap, 1000);
-        if (ret != 0) printf("pcap_set_timeout failed %s\n", pcap_geterr(pcap));
-
-        ret = pcap_set_buffer_size(pcap, 1000000);
-        if (ret != 0)
-            printf("pcap_set_buffer_size failed %s\n", pcap_geterr(pcap));
-
-        ret = pcap_set_promisc(pcap, 1);
-        if (ret != 0) printf("pcap_set_promisc failed %s\n", pcap_geterr(pcap));
-
-
-        ret = pcap_activate(pcap);
-        if (ret != 0) printf("pcap_activate failed %s\n", pcap_geterr(pcap));
+        ret = pcap_set_snaplen(gPcap, 65536);
+        if (ret != 0) {
+            fprintf(stderr, "pcap_set_snaplen failed %s\n", pcap_geterr(gPcap));
+        }
+        ret = pcap_set_timeout(gPcap, 1000);
+        if (ret != 0) {
+            fprintf(stderr, "pcap_set_timeout failed %s\n", pcap_geterr(gPcap));
+        }
+        ret = pcap_set_buffer_size(gPcap, 1000000);
+        if (ret != 0) {
+            fprintf(stderr, "pcap_set_buffer_size failed %s\n", pcap_geterr(gPcap));
+        }
+        ret = pcap_set_promisc(gPcap, 1);
+        if (ret != 0) {
+            fprintf(stderr, "pcap_set_promisc failed %s\n", pcap_geterr(gPcap));
+        }
+        ret = pcap_activate(gPcap);
+        if (ret != 0) {
+            fprintf(stderr, "pcap_activate failed %s\n", pcap_geterr(gPcap));
+        }
 
         printf("Enter the port to scan [default: %d]: ", portDef);
         memset(cmdLineArg, 0, sizeof(cmdLineArg));
@@ -486,15 +453,17 @@ int middlebox_decrypt_test(int argc, char** argv)
 
         SNPRINTF(filter, sizeof(filter), "tcp and port %d", port);
 
-        ret = pcap_compile(pcap, &fp, filter, 0, 0);
+        ret = pcap_compile(gPcap, &fp, filter, 0, 0);
         if (ret != 0) {
-            printf("pcap_compile failed %s\n", pcap_geterr(pcap));
-            printf("Try using `sudo` permissions with middlebox/decrypt\n");
+            fprintf(stderr, "pcap_compile failed %s\n", pcap_geterr(gPcap));
+            fprintf(stderr, "Try using `sudo` permissions with middlebox/decrypt\n");
             exit(EXIT_FAILURE);
         }
 
-        ret = pcap_setfilter(pcap, &fp);
-        if (ret != 0) printf("pcap_setfilter failed %s\n", pcap_geterr(pcap));
+        ret = pcap_setfilter(gPcap, &fp);
+        if (ret != 0) {
+            fprintf(stderr, "pcap_setfilter failed %s\n", pcap_geterr(gPcap));
+        }
 
         /* specify the key file or URL for ETSI key manager */
         printf("Enter the server key [default: %s]: ", keyFilesSrc);
@@ -541,11 +510,13 @@ int middlebox_decrypt_test(int argc, char** argv)
             }
         }
     }
+
+    /* If arguments are provided then we are using a pre-recorded pcap */
     else if (argc >= 2) {
-        isOfflinePcap = 1;
-        pcap = pcap_open_offline(argv[1], err);
-        if (pcap == NULL) {
-            printf("pcap_open_offline failed %s\n", err);
+        gIsOfflinePcap = 1;
+        gPcap = pcap_open_offline(argv[1], err);
+        if (gPcap == NULL) {
+            fprintf(stderr, "pcap_open_offline failed %s\n", err);
             ret = -1;
         }
         else {
@@ -570,15 +541,15 @@ int middlebox_decrypt_test(int argc, char** argv)
             }
 
             /* Only let through TCP/IP packets */
-            ret = pcap_compile(pcap, &fp, "(ip6 or ip) and tcp", 0, 0);
+            ret = pcap_compile(gPcap, &fp, "(ip6 or ip) and tcp", 0, 0);
             if (ret != 0) {
-                printf("pcap_compile failed %s\n", pcap_geterr(pcap));
+                fprintf(stderr, "pcap_compile failed %s\n", pcap_geterr(gPcap));
                 exit(EXIT_FAILURE);
             }
 
-            ret = pcap_setfilter(pcap, &fp);
+            ret = pcap_setfilter(gPcap, &fp);
             if (ret != 0) {
-                printf("pcap_setfilter failed %s\n", pcap_geterr(pcap));
+                fprintf(stderr, "pcap_setfilter failed %s\n", pcap_geterr(gPcap));
                 exit(EXIT_FAILURE);
             }
         }
@@ -593,13 +564,13 @@ int middlebox_decrypt_test(int argc, char** argv)
     if (ret != 0)
         err_sys(err);
 
-    if (pcap_datalink(pcap) == DLT_NULL)
+    if (pcap_datalink(gPcap) == DLT_NULL)
         frame = NULL_IF_FRAME_LEN;
 
     while (1) {
         static int packetNumber = 0;
         struct pcap_pkthdr header;
-        const unsigned char* packet = pcap_next(pcap, &header);
+        const unsigned char* packet = pcap_next(gPcap, &header);
         SSLInfo sslInfo;
         packetNumber++;
         if (packet) {
@@ -616,7 +587,7 @@ int middlebox_decrypt_test(int argc, char** argv)
             ret = ssl_DecodePacketWithSessionInfo(packet, header.caplen, &data,
                                                   &sslInfo, err);
             if (ret < 0) {
-                printf("ssl_Decode ret = %d, %s\n", ret, err);
+                fprintf(stderr, "ssl_Decode ret = %d, %s\n", ret, err);
                 hadBadPacket = 1;
             }
             if (ret > 0) {
@@ -631,7 +602,7 @@ int middlebox_decrypt_test(int argc, char** argv)
                 ssl_FreeZeroDecodeBuffer(&data, ret, err);
             }
         }
-        else if (isOfflinePcap)
+        else if (gIsOfflinePcap)
             break;      /* we're done reading file */
     }
     FreeAll();

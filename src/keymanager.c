@@ -257,7 +257,7 @@ int main(int argc, char** argv)
     /********** ETSI Service **********/
     etsiSvc = wolfEtsiSvc_Init(&config);
     if (etsiSvc) {
-        /* set socket timeut */
+        /* set socket timeout */
         wolfKeyMgr_SetTimeout(etsiSvc, timeoutSec);
 
         ret = wolfKeyMgr_LoadCAFile(etsiSvc, caCert, WOLFSSL_FILETYPE_PEM);
@@ -266,14 +266,14 @@ int main(int argc, char** argv)
             goto exit;
         }
 
-        ret = wolfKeyMgr_LoadKeyFile(etsiSvc, serverKey, 
+        ret = wolfKeyMgr_LoadKeyFile(etsiSvc, serverKey,
             WOLFSSL_FILETYPE_PEM, serverKeyPass);
         if (ret != 0) {
             XLOG(WOLFKM_LOG_ERROR, "Error %d loading ETSI TLS key\n", ret);
             goto exit;
         }
 
-        ret = wolfKeyMgr_LoadCertFile(etsiSvc, serverCert, 
+        ret = wolfKeyMgr_LoadCertFile(etsiSvc, serverCert,
             WOLFSSL_FILETYPE_PEM);
         if (ret != 0) {
             XLOG(WOLFKM_LOG_ERROR, "Error %d loading ETSI TLS certificate\n", ret);

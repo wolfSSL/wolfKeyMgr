@@ -90,7 +90,7 @@ WOLFKM_API int  wolfSocketGetError(WKM_SOCKET_T sockFd, int* so_error);
 WOLFKM_API int  wolfSocketLastError(int err);
 
 WOLFKM_API int wolfSockListen(WKM_SOCKET_T* listenFd, word16 port);
-WOLFKM_API int wolfSockAccept(WKM_SOCKET_T listenFd, WKM_SOCKET_T* clientFd, 
+WOLFKM_API int wolfSockAccept(WKM_SOCKET_T listenFd, WKM_SOCKET_T* clientFd,
     SOCKADDR_IN_T* clientAddr, int timeoutSec);
 
 WOLFKM_API char* wolfSocketAddrStr(SOCKADDR_IN_T* addr);

@@ -98,7 +98,7 @@
     #elif defined(HAVE_CURVE25519)
         #define WOLFKM_ETSISVC_DEF_KEY_TYPE  ETSI_KEY_TYPE_X25519
     #elif defined(HAVE_CURVE448)
-        #define WOLFKM_ETSISVC_DEF_KEY_TYPE  ETSI_KEY_TYPE_X25519
+        #define WOLFKM_ETSISVC_DEF_KEY_TYPE  ETSI_KEY_TYPE_X448
     #endif
 #endif
 

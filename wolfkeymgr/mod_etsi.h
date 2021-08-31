@@ -141,22 +141,22 @@ WOLFKM_API int wolfEtsiClientAddCA(EtsiClientCtx* client,
     const char* caFile);
 
 /* Open TLS session to ETSI Key Manager */
-WOLFKM_API int wolfEtsiClientConnect(EtsiClientCtx* client, 
+WOLFKM_API int wolfEtsiClientConnect(EtsiClientCtx* client,
     const char* host, word16 port, int timeoutSec);
 
 WOLFKM_API int wolfEtsiClientMakeRequest(EtsiClientType type, const char* fingerprint,
     const char* groups, const char* contextstr, byte* request, word32* requestSz);
 
 /* Get will return current key for provided fingerprint
- * fingerprint: a SHA256 hash of public key first 80 bits of digest in big- 
+ * fingerprint: a SHA256 hash of public key first 80 bits of digest in big-
  *  endian format as HEX string (10 characters max)
  * contextStr: Optional server info (for multiple server system)
  * keyType can be DHE/ECDHE/X25519/X448
  * return:
- *   - zero response means existing key is used, 
+ *   - zero response means existing key is used,
  *   - negative is error
  *   - positive means new key retrieved */
-WOLFKM_API int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key, 
+WOLFKM_API int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
     EtsiKeyType keyType, const char* fingerprint, const char* contextStr,
     int timeoutSec);
 
@@ -183,6 +183,8 @@ WOLFKM_API void wolfEtsiClientFree(EtsiClientCtx* client);
 WOLFKM_API EtsiKey* wolfEtsiKeyNew(void);
 /* Returns the wolf PK type (enum wc_PkType) */
 WOLFKM_API int wolfEtsiKeyGetPkType(EtsiKey* key);
+/* Lookup the wolfSSL PK type (enum wc_PkType) from named group */
+WOLFKM_API int wolfEtsiGetPkType(EtsiKeyType type);
 /* Load key to WOLFSSL_CTX directly */
 WOLFKM_API int wolfEtsiKeyLoadCTX(EtsiKey* key, WOLFSSL_CTX* ctx);
 /* Load key to WOLFSSL session directly */

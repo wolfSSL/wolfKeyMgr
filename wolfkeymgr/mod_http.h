@@ -148,7 +148,7 @@ typedef struct HttpUrl {
 WOLFKM_API const char* wolfHttpGetMethodStr(HttpMethodType type, word32* strLen);
 WOLFKM_API const char* wolfHttpGetHeaderStr(HttpHeaderType type, word32* strLen);
 
-WOLFKM_API int wolfHttpServer_EncodeResponse(int rspCode, const char* message, 
+WOLFKM_API int wolfHttpServer_EncodeResponse(int rspCode, const char* message,
     byte* response, word32* responseSz, HttpHeader* headers, word32 headerCount,
     const byte* body, word32 bodySz);
 WOLFKM_API int wolfHttpServer_ParseRequest(HttpReq* req, byte* buf, word32 sz);

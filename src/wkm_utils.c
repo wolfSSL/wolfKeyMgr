@@ -137,7 +137,7 @@ void wolfKeyMgr_Log(enum log_level_t level, const char* fmt, ...)
     if (localtime_r(&current, &local)) {
         /* make pretty */
         strftime(timeStr, sizeof(timeStr), "%b %d %T %Y", &local);
-    }        
+    }
     timeStr[sizeof(timeStr)-1] = '\0';
 
     /* format msg */
@@ -147,7 +147,7 @@ void wolfKeyMgr_Log(enum log_level_t level, const char* fmt, ...)
     va_end(vlist);
     msgStr[sizeof(msgStr)-1] = '\0';
 
-    fprintf(logFile, "%s: [%s] %s", 
+    fprintf(logFile, "%s: [%s] %s",
         timeStr, wolfKeyMgr_GetLogLevel(level), msgStr);
 }
 
