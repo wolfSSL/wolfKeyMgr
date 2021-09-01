@@ -1,4 +1,4 @@
-/* api.c
+/* unit_tests.c
  *
  * Copyright (C) 2006-2021 wolfSSL Inc.
  *
@@ -62,7 +62,6 @@ static int vault_test(void)
     wolfVaultCtx* ctx = NULL;
     wolfVaultItem item;
     const char* testFile = "vault.bin";
-    //const char* testPass = "password";
     struct vaultTestItems {
         word32 type;
         const char* name;

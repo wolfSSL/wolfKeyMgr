@@ -35,8 +35,8 @@ extern "C" {
 #define ETSI_TEST_TIMEOUT_MS      2
 #define ETSI_TEST_KEY_TYPE        ETSI_KEY_TYPE_SECP256R1
 
-/* example certificate and key for mutual authentication to key manager */
-/* see ./certs/test-cert.sh for generation and signing */
+/* Example certificate and key for mutual authentication to key manager.
+ * See ./certs/test-cert.sh for generation and signing. */
 #define ETSI_TEST_CLIENT_CA       "certs/ca-cert.pem"
 #define ETSI_TEST_CLIENT_KEY      "certs/client-key.pem"
 #define ETSI_TEST_CLIENT_PASS     "wolfssl"
@@ -48,8 +48,8 @@ extern "C" {
 #define HTTPS_TEST_TIMEOUT_SEC    30
 #define HTTPS_TEST_MAX_DATA       512
 
-/* see ./certs/test-cert.sh for generation and signing */
-/* this is a self signed test cert server presents */
+/* See ./certs/test-cert.sh for generation and signing.
+ * This is a self signed test cert the server can present. */
 #define HTTPS_TEST_CA             "certs/test-cert.pem"
 #define HTTPS_TEST_CERT           "certs/test-cert.pem"
 #define HTTPS_TEST_KEY            "certs/test-key.pem"

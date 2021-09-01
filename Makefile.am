@@ -24,6 +24,7 @@ DISTCLEANFILES+= aminclude.am
 
 ACLOCAL_AMFLAGS = -I m4
 EXTRA_DIST += README.md
+EXTRA_DIST += ChangeLog.md
 EXTRA_DIST += LICENSE
 
 include src/include.am

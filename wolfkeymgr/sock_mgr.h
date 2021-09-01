@@ -179,7 +179,8 @@ WOLFKM_LOCAL void wolfKeyMgr_ShowStats(SvcInfo* svc);
 WOLFKM_LOCAL FILE* wolfKeyMgr_GetPidFile(const char* pidFile, pid_t pid);
 WOLFKM_LOCAL void wolfKeyMgr_SetTimeout(SvcInfo* svc, word32 timeoutSec);
 
-WOLFKM_LOCAL int wolfKeyMgr_AddListeners(SvcInfo* svc, int af_v, const char* listenPort, struct event_base* mainBase);
+WOLFKM_LOCAL int wolfKeyMgr_AddListeners(SvcInfo* svc, int af_v,const char* listenPort,
+    struct event_base* mainBase);
 WOLFKM_LOCAL int wolfKeyMgr_ServiceInit(SvcInfo* svc, int numThreads);
 WOLFKM_LOCAL void wolfKeyMgr_ServiceCleanup(SvcInfo* svc);
 WOLFKM_LOCAL void wolfKeyMgr_FreeListeners(void);

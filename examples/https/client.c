@@ -40,7 +40,7 @@ int https_client_test(int argc, char** argv)
     wolfSSL_Init();
 
     /* log setup */
-    //wolfSSL_Debugging_ON();
+    /* wolfSSL_Debugging_ON(); */
     wolfKeyMgr_SetLogFile(NULL, 0, WOLFKM_LOG_DEBUG);
 
     ctx = wolfTlsClientNew();

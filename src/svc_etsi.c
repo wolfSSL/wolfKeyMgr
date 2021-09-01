@@ -54,7 +54,7 @@ typedef struct EtsiSvcCtx {
 } EtsiSvcCtx;
 static EtsiSvcCtx gSvcCtx;
 
-/* the top level service */
+/* The top level service */
 static SvcInfo gEtsiService = {
     .desc = "ETSI",
 
@@ -347,7 +347,7 @@ static int wolfEtsiSvc_DoResponse(SvcConn* conn)
     return ret;
 }
 
-/* the key request handler */
+/* The key request handler */
 int wolfEtsiSvc_DoRequest(SvcConn* conn)
 {
     int ret = 0;
