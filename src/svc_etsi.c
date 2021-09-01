@@ -51,6 +51,8 @@ typedef struct EtsiSvcCtx {
 #ifdef WOLFKM_VAULT
     wolfVaultCtx*   vault; /* key vault */
 #endif
+
+    byte shutdown:1; /* signal to shutdown workers */
 } EtsiSvcCtx;
 static EtsiSvcCtx gSvcCtx;
 
@@ -128,6 +130,14 @@ static int EtsiSvcGenNewKey(EtsiSvcCtx* svcCtx, EtsiKeyType keyType, EtsiKey* ke
     }
 
     return ret;
+}
+
+static void WakeKeyGenWorker(EtsiSvcCtx* svcCtx)
+{
+    /* signal key generation thread to wake */
+    pthread_mutex_lock(&svcCtx->kgMutex);
+    pthread_cond_signal(&svcCtx->kgCond);
+    pthread_mutex_unlock(&svcCtx->kgMutex);
 }
 
 static int SetupKeyPackage(SvcConn* conn, EtsiSvcCtx* svcCtx)
@@ -222,9 +232,7 @@ static int SetupKeyPackage(SvcConn* conn, EtsiSvcCtx* svcCtx)
 
     if (wakeKg) {
         /* signal key generation thread to wake */
-        pthread_mutex_lock(&svcCtx->kgMutex);
-        pthread_cond_signal(&svcCtx->kgCond);
-        pthread_mutex_unlock(&svcCtx->kgMutex);
+        WakeKeyGenWorker(svcCtx);
     }
 
     return ret;
@@ -318,7 +326,7 @@ static void* KeyPushWorker(void* arg)
         pthread_mutex_unlock(&svcCtx->kgMutex);
 
         XLOG(WOLFKM_LOG_DEBUG, "Key Generation Worker Wake %d sec\n", ret);
-    } while (1);
+    } while (!svcCtx->shutdown);
 
     return NULL;
 }
@@ -580,6 +588,10 @@ void wolfEtsiSvc_Cleanup(SvcInfo* svc)
     #endif
 
         wc_FreeRng(&svcCtx->rng);
+
+        /* signal shutdown and wake worker */
+        svcCtx->shutdown =  1;
+        WakeKeyGenWorker(svcCtx);
 
         pthread_mutex_destroy(&svcCtx->kgMutex);
         pthread_cond_destroy(&svcCtx->kgCond);
