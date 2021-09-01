@@ -164,8 +164,8 @@ static void OurListenerError(struct evconnlistener* listener, void* ptr)
     }
     /* for invalid argument disable listener */
     if (err == EINVAL) {
-        /* this can happen if ss -kill socket is run */
-        /* otherwise causes libevent error callback loop */
+        /* this can happen if ss -kill socket is run,
+         * otherwise causes libevent error callback loop */
         evconnlistener_disable(listener);
     }
 }
@@ -390,7 +390,7 @@ static void WorkerExit(void* arg)
 
     /* put per thread stats into global stats */
     /* do this before closing active connections,
-        so we can see how many were connected */
+     * so we can see how many were connected */
     pthread_mutex_lock(&svc->globalStats.lock);
     svc->globalStats.totalConnections   += threadStats.totalConnections;
     svc->globalStats.completedRequests  += threadStats.completedRequests;

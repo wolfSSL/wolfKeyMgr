@@ -124,11 +124,11 @@ typedef struct EtsiKey {
 } EtsiKey;
 
 /* Key callback Function */
-/* if return code is not zero then socket will be closed */
+/* If return code is not zero then socket will be closed */
 typedef int (*EtsiKeyCallbackFunc)(EtsiClientCtx* client, EtsiKey* key, void* cbCtx);
 
 /* ETSI Client API's */
-/* allocate new ETSI client context */
+/* Allocate new ETSI client context */
 WOLFKM_API EtsiClientCtx* wolfEtsiClientNew(void);
 
 /* Setup the TLS mutual authentication key/certificate for accessing the ETSI Key Manager */
@@ -160,8 +160,8 @@ WOLFKM_API int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
     EtsiKeyType keyType, const char* fingerprint, const char* contextStr,
     int timeoutSec);
 
-/* this call will be blocking until socket failure or callback non-zero return */
-/* when server pushes new keys the callback will trigger with EtsiKey populated */
+/* This call will be blocking until socket failure or callback non-zero return
+ * when server pushes new keys the callback will trigger with EtsiKey populated */
 WOLFKM_API int wolfEtsiClientPush(EtsiClientCtx* client, EtsiKeyType keyType,
     const char* fingerprint, const char* contextStr,
     EtsiKeyCallbackFunc cb, void* cbCtx);
@@ -178,8 +178,8 @@ WOLFKM_API int wolfEtsiClientClose(EtsiClientCtx* client);
 WOLFKM_API void wolfEtsiClientFree(EtsiClientCtx* client);
 
 /* ETSI Key API's */
-/* allocate ETSI key dynamically from heap */
-/* The EtsiKey can come from stack, but must be memset to zero */
+/* Allocate ETSI key dynamically from heap.
+ * The EtsiKey can come from stack, but must be memset to zero. */
 WOLFKM_API EtsiKey* wolfEtsiKeyNew(void);
 /* Returns the wolf PK type (enum wc_PkType) */
 WOLFKM_API int wolfEtsiKeyGetPkType(EtsiKey* key);
@@ -193,9 +193,9 @@ WOLFKM_API int wolfEtsiKeyLoadSSL(EtsiKey* key, WOLFSSL* ssl);
 WOLFKM_API int wolfEtsiKeyGetPtr(EtsiKey* key, byte** response, word32* responseSz);
 /* Generate a new key */
 WOLFKM_API int wolfEtsiKeyGen(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng);
-/* print ETSI key data - for debugging / testing */
+/* Print ETSI key data - for debugging / testing */
 WOLFKM_API void wolfEtsiKeyPrint(EtsiKey* key);
-/* release ETSI key resources */
+/* Release ETSI key resources */
 WOLFKM_API void wolfEtsiKeyFree(EtsiKey* key);
 
 WOLFKM_API const char* wolfEtsiKeyNamedGroupStr(EtsiKey* key);
@@ -208,7 +208,8 @@ WOLFKM_API int wolfEtsiCalcTlsFingerprint(EtsiKeyType keyType,
 /* Build public name for key */
 WOLFKM_API int wolfEtsiKeyComputeName(EtsiKey* key);
 
-/* these are required if using multiple threads sharing the wolfSSL library for init mutex protection */
+/* These are required if using multiple threads sharing the wolfSSL library 
+ * for init mutex protection */
 WOLFKM_API int wolfEtsiClientInit(void);
 WOLFKM_API void wolfEtsiClientCleanup(void);
 

@@ -54,25 +54,31 @@ typedef struct wolfVaultItem {
     word32 dataSz;
     time_t timestamp;
     byte*  data; /* always dynamic - free using wolfVaultFreeItem */
-    byte   name[WOLFKM_VAULT_NAME_MAX_SZ]; /* name is hash of public key or leading bits from it */
+    byte   name[WOLFKM_VAULT_NAME_MAX_SZ]; /* name is hash of public key or
+                                            * leading bits from it */
 } wolfVaultItem;
 
 /* open vault file */
 WOLFKM_API int wolfVaultOpen(wolfVaultCtx** ctx, const char* file);
 
-/* key: the AES key to use for encryption/decryption, keyEnc: optional data to store in vault header */
-typedef int (*VaultAuthCbFunc)(wolfVaultCtx* ctx, byte* key, word32 keySz, byte* keyEnc, word32 keyEncSz, void* cbCtx);
+/* key: the AES key to use for encryption/decryption, keyEnc: optional data to
+ * store in vault header */
+typedef int (*VaultAuthCbFunc)(wolfVaultCtx* ctx, byte* key, word32 keySz,
+    byte* keyEnc, word32 keyEncSz, void* cbCtx);
 /* setup authentication callback to get encryption key */
 WOLFKM_API int wolfVaultAuth(wolfVaultCtx* ctx, VaultAuthCbFunc cb, void* cbCtx);
 
 /* add item to vault */
-WOLFKM_API int wolfVaultAdd(wolfVaultCtx* ctx, word32 type, const byte* name, word32 nameSz, const byte* data, word32 dataSz);
+WOLFKM_API int wolfVaultAdd(wolfVaultCtx* ctx, word32 type, const byte* name,
+    word32 nameSz, const byte* data, word32 dataSz);
 /* get copy of item from vault */
-WOLFKM_API int wolfVaultGet(wolfVaultCtx* ctx, wolfVaultItem* item, word32 type, const byte* name, word32 nameSz);
+WOLFKM_API int wolfVaultGet(wolfVaultCtx* ctx, wolfVaultItem* item, word32 type,
+    const byte* name, word32 nameSz);
 /* free a wolfVaultItem structure */
 WOLFKM_API int wolfVaultFreeItem(wolfVaultItem* item);
 /* delete a single item from the vault */
-WOLFKM_API int wolfVaultDelete(wolfVaultCtx* ctx, word32 type, const byte* name, word32 nameSz);
+WOLFKM_API int wolfVaultDelete(wolfVaultCtx* ctx, word32 type, const byte* name,
+    word32 nameSz);
 /* archive items older than specified date from vault */
 WOLFKM_API int wolfVaultArchive(wolfVaultCtx* ctx, word32 timestamp);
 /* close vault file */

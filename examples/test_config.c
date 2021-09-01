@@ -42,7 +42,7 @@ int etsi_client_connect(const char* urlStr)
                 ETSI_TEST_CLIENT_CERT, WOLFSSL_FILETYPE_PEM);
 
             if (urlStr) {
-                strncpy(urlStrCopy, urlStr, HTTP_MAX_URI);
+                strncpy(urlStrCopy, urlStr, (HTTP_MAX_URI - 1));
                 memset(&url, 0, sizeof(url));
                 wolfHttpUrlDecode(&url, urlStrCopy);
             }
