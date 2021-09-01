@@ -37,6 +37,7 @@
 #include <wolfssl/options.h>
 #include <wolfssl/wolfcrypt/settings.h>
 #include <wolfssl/wolfcrypt/types.h>
+#include <wolfssl/wolfcrypt/asn_public.h>
 
 #ifdef HAVE_ECC
     #include <wolfssl/wolfcrypt/ecc.h>
