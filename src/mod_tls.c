@@ -43,7 +43,7 @@ static int wkmTlsReadCb(WOLFSSL* ssl, char* buf, int sz, void* ctx)
         if (err == SOCKET_EWOULDBLOCK || err == SOCKET_EAGAIN) {
             return WOLFSSL_CBIO_ERR_WANT_READ;
         }
-        
+
         XLOG(WOLFKM_LOG_ERROR, "wkmTlsReadCb error %d (errno %d: %s)\n",
             ret, err, strerror(err));
 
@@ -173,7 +173,7 @@ int wolfTlsAddCA(WOLFSSL_CTX* ctx, const char* caFile)
 
     ret = wolfSSL_CTX_load_verify_locations(ctx, caFile, NULL);
     if (ret != WOLFSSL_SUCCESS) {
-        XLOG(WOLFKM_LOG_ERROR, "Error loading TLS CA %s into context. Error: %s (%d)\n", 
+        XLOG(WOLFKM_LOG_ERROR, "Error loading TLS CA %s into context. Error: %s (%d)\n",
             caFile, wolfSSL_ERR_reason_error_string(ret), ret);
         return WOLFKM_BAD_FILE;
     }
@@ -181,7 +181,7 @@ int wolfTlsAddCA(WOLFSSL_CTX* ctx, const char* caFile)
     return 0;
 }
 
-int wolfTlsSetKey(WOLFSSL_CTX* ctx, const char* keyFile, 
+int wolfTlsSetKey(WOLFSSL_CTX* ctx, const char* keyFile,
     const char* keyPassword, const char* certFile, int fileType)
 {
     int ret = WOLFSSL_FAILURE;
@@ -351,7 +351,7 @@ int wolfTlsRead(WOLFSSL* ssl, byte* p, int* len, int timeoutSec)
     }
     else if (ret < 0) {
         XLOG(WOLFKM_LOG_ERROR, "wolfTlsRead error %d: %s\n",
-            err, wolfSSL_ERR_reason_error_string(err));        
+            err, wolfSSL_ERR_reason_error_string(err));
     }
     return ret;
 }
@@ -365,7 +365,7 @@ int wolfTlsWrite(WOLFSSL* ssl, byte* p, int len)
     if (ssl == NULL || (p == NULL && len > 0)) {
         return WOLFKM_BAD_ARGS;
     }
-    
+
     cbCtx = (wolfTlsCbCtx*)wolfSSL_GetIOWriteCtx(ssl);
     if (cbCtx == NULL)
         return WOLFKM_BAD_ARGS;
@@ -406,7 +406,7 @@ int wolfTlsClose(WOLFSSL* ssl, int sendShutdown)
     if (ssl && sendShutdown) {
         ret = wolfSSL_shutdown(ssl);
     }
-    
+
     cbCtx = wolfSSL_GetIOReadCtx(ssl);
     if (cbCtx) {
         wolfSocketClose(cbCtx->sockFd);

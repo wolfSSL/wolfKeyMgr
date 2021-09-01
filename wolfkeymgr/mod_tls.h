@@ -40,7 +40,7 @@ extern "C" {
 /* TLS Client / Connect */
 #ifndef NO_WOLFSSL_CLIENT
 WOLFKM_API WOLFSSL_CTX* wolfTlsClientNew(void);
-WOLFKM_API int wolfTlsConnect(WOLFSSL_CTX* ctx, WOLFSSL** ssl, 
+WOLFKM_API int wolfTlsConnect(WOLFSSL_CTX* ctx, WOLFSSL** ssl,
     const char* host, word16 port, int timeoutSec);
 #endif
 
@@ -53,7 +53,7 @@ WOLFKM_API int wolfTlsAccept(WOLFSSL_CTX* ctx, WKM_SOCKET_T listenFd,
 
 /* Generic TLS */
 WOLFKM_API int  wolfTlsAddCA(WOLFSSL_CTX* ctx, const char* caFile);
-WOLFKM_API int  wolfTlsSetKey(WOLFSSL_CTX* ctx, const char* keyFile, 
+WOLFKM_API int  wolfTlsSetKey(WOLFSSL_CTX* ctx, const char* keyFile,
     const char* keyPassword, const char* certFile, int fileType);
 WOLFKM_API int  wolfTlsRead(WOLFSSL* ssl, byte* p, int* len, int timeoutSec);
 WOLFKM_API int  wolfTlsWrite(WOLFSSL* ssl, byte* p, int len);

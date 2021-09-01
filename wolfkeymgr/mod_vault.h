@@ -70,15 +70,15 @@ WOLFKM_API int wolfVaultAdd(wolfVaultCtx* ctx, word32 type, const byte* name, wo
 /* get copy of item from vault */
 WOLFKM_API int wolfVaultGet(wolfVaultCtx* ctx, wolfVaultItem* item, word32 type, const byte* name, word32 nameSz);
 /* free a wolfVaultItem structure */
-WOLFKM_API void wolfVaultFreeItem(wolfVaultItem* item);
+WOLFKM_API int wolfVaultFreeItem(wolfVaultItem* item);
 /* delete a single item from the vault */
 WOLFKM_API int wolfVaultDelete(wolfVaultCtx* ctx, word32 type, const byte* name, word32 nameSz);
 /* archive items older than specified date from vault */
 WOLFKM_API int wolfVaultArchive(wolfVaultCtx* ctx, word32 timestamp);
 /* close vault file */
-WOLFKM_API void wolfVaultClose(wolfVaultCtx* ctx);
+WOLFKM_API int wolfVaultClose(wolfVaultCtx* ctx);
 
-WOLFKM_API void wolfVaultPrintInfo(wolfVaultCtx* ctx);
+WOLFKM_API int wolfVaultPrintInfo(wolfVaultCtx* ctx);
 
 #ifdef __cplusplus
 }

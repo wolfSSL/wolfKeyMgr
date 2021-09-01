@@ -84,6 +84,9 @@ static int keyCb(EtsiClientCtx* client, EtsiKey* key, void* userCtx)
         ret = wolfSSL_CTX_set_ephemeral_key(tctx->ctx,
             keyAlgo, (char*)key->response, key->responseSz,
             WOLFSSL_FILETYPE_ASN1);
+        if (ret == NOT_COMPILED_IN) {
+            ret = 0; /* not compiled in case is okay */
+        }
     #endif
     }
     if (ret == 0) {
@@ -170,7 +173,7 @@ static void* DoRequests(void* arg)
     if (ret != 0) {
         XLOG(WOLFKM_LOG_ERROR, "Error loading ETSI client key/cert %d!\n", ret);
     }
-    ret = wolfEtsiClientConnect(client, info->host, info->port, 
+    ret = wolfEtsiClientConnect(client, info->host, info->port,
         info->timeoutSec);
     if (ret == 0) {
         /* setup test CTX to demonstrate loading static ephemeral */
@@ -328,7 +331,7 @@ int etsi_test(int argc, char** argv)
 
     if (errorMode)
         return DoErrorMode();
-    
+
     wolfEtsiClientInit();
 
     if (poolSize == 0) {

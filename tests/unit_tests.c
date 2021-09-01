@@ -111,7 +111,7 @@ static int vault_test(void)
             wolfVaultFreeItem(&item);
         }
 
-        wolfVaultClose(ctx);
+        wolfVaultClose(ctx); /* ignore return code */
     }
 #endif /* WOLFKM_VAULT */
     return ret;

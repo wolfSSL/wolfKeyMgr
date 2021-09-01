@@ -36,4 +36,3 @@ extern "C" {
 
 
 #endif /* WOLFKM_VERSION_H */
-

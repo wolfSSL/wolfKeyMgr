@@ -22,6 +22,8 @@
 #ifndef WKM_TEST_CONFIG_G
 #define WKM_TEST_CONFIG_G
 
+#include "wolfkeymgr/mod_etsi.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -53,8 +55,16 @@ extern "C" {
 #define HTTPS_TEST_KEY            "certs/test-key.pem"
 
 /* HTTP */
-#define HTTPS_TEST_REQUEST       "/index.html"
-#define HTTPS_TEST_RESPONSE      "<html><body><h1>It works!</h1></body></html>"
+#define HTTPS_TEST_REQUEST        "/index.html"
+#define HTTPS_TEST_RESPONSE       "<html><body><h1>It works!</h1></body></html>"
+
+/* ETSI Client Helper Functions */
+typedef int (*etsi_client_key_cb)(EtsiKey* key, void* cbCtx);
+int  etsi_client_connect(const char* urlStr);
+int  etsi_client_get(const char* urlStr, EtsiKey* key, int keyType);
+int  etsi_client_get_all(const char* urlStr, etsi_client_key_cb cb, void* cbCtx);
+int  etsi_client_find(const char* urlStr, EtsiKey* key, int namedGroup, const byte* pub, word32 pubSz);
+void etsi_client_cleanup(void);
 
 
 #ifdef __cplusplus

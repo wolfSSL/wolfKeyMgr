@@ -79,7 +79,7 @@ const char* wolfHttpGetHeaderStr(HttpHeaderType type, word32* strLen)
             break;
         case HTTP_HDR_ACCEPT_ENCODING:
             str = "Accept-Encoding: ";
-            break;            
+            break;
         case HTTP_HDR_CONNECTION:
             str = "Connection: ";
             break;
@@ -118,7 +118,7 @@ static HttpMethodType HttpParseMethod(char* method)
     HttpMethodType type;
     const char* str;
     word32 len;
-    
+
     /* loop through methods and find match */
     for (type=HTTP_METHOD_UNKNOWN; type<HTTP_METHOD_LAST; type++) {
         if ((str = wolfHttpGetMethodStr(type, &len))) {
@@ -140,7 +140,7 @@ static void HttpParseHeader(HttpHeader* headers, word32* headerCount, char* hdrS
 
     if (*headerCount >= HTTP_HDR_MAX_ITEMS)
         return;
-    
+
     hdr = &headers[*headerCount];
     memset(hdr, 0, sizeof(*hdr));
 
@@ -184,7 +184,7 @@ int wolfHttpServer_ParseRequest(HttpReq* req, byte* buf, word32 sz)
         return HTTP_ERROR_EXPECTED_METHOD;
     }
     req->method = sec;
-    itemSz = strlen(sec) + 1; /* include space */    
+    itemSz = strlen(sec) + 1; /* include space */
     sec += itemSz; len -= itemSz;
 
     /* Find end of line */
@@ -211,7 +211,7 @@ int wolfHttpServer_ParseRequest(HttpReq* req, byte* buf, word32 sz)
         if (endline == NULL)
             break;
         sec = endline + 2; /* 2=length of CRLF */
-        /* check if we have reached end of incoming buffer */    
+        /* check if we have reached end of incoming buffer */
         if (sec >= (char*)buf + sz)
             break;
 
@@ -226,7 +226,7 @@ int wolfHttpServer_ParseRequest(HttpReq* req, byte* buf, word32 sz)
     return 0;
 }
 
-int wolfHttpServer_EncodeResponse(int rspCode, const char* message, 
+int wolfHttpServer_EncodeResponse(int rspCode, const char* message,
     byte* response, word32* responseSz, HttpHeader* headers, word32 headerCount,
     const byte* body, word32 bodySz)
 {
@@ -235,7 +235,7 @@ int wolfHttpServer_EncodeResponse(int rspCode, const char* message,
     char* out = (char*)response;
     word32 remain;
 
-    if (response == NULL || responseSz == NULL || *responseSz == 0 || 
+    if (response == NULL || responseSz == NULL || *responseSz == 0 ||
             (headers == NULL && headerCount > 0)) {
         return WOLFKM_BAD_ARGS;
     }
@@ -260,7 +260,7 @@ int wolfHttpServer_EncodeResponse(int rspCode, const char* message,
     for (c=0; c<(int)headerCount && remain > 0; c++) {
         hdr = &headers[c];
 
-        i = snprintf(out, remain, "%s%s\r\n", 
+        i = snprintf(out, remain, "%s%s\r\n",
             wolfHttpGetHeaderStr(hdr->type, NULL), hdr->string);
         if (i > 0) {
             out += i;
@@ -270,7 +270,7 @@ int wolfHttpServer_EncodeResponse(int rspCode, const char* message,
 
     /* append content length */
     if (bodySz > 0) {
-        i = snprintf(out, remain, "%s%d\r\n", 
+        i = snprintf(out, remain, "%s%d\r\n",
             wolfHttpGetHeaderStr(HTTP_HDR_CONTENT_LENGTH, NULL), bodySz);
         if (i > 0) {
             out += i;
@@ -321,7 +321,7 @@ int wolfHttpClient_ParseResponse(HttpRsp* rsp, char* buf, word32 sz)
         *endline = '\0'; /* null terminate string */
     }
     rsp->version = sec;
-    itemSz = strlen(sec) + 1; /* include space */    
+    itemSz = strlen(sec) + 1; /* include space */
     sec += itemSz; len -= itemSz;
 
     /* HTTP Response Code */
@@ -331,7 +331,7 @@ int wolfHttpClient_ParseResponse(HttpRsp* rsp, char* buf, word32 sz)
         *endline = '\0'; /* null terminate string */
     }
     rsp->code = atoi(sec);
-    itemSz = strlen(sec) + 1; /* include space */    
+    itemSz = strlen(sec) + 1; /* include space */
     sec += itemSz; len -= itemSz;
 
     /* HTTP Response Message */
@@ -378,7 +378,7 @@ int wolfHttpClient_EncodeRequest(HttpMethodType type, const char* uri,
     char* out = (char*)request;
     word32 remain;
 
-    if (request == NULL || requestSz == NULL || *requestSz == 0 || 
+    if (request == NULL || requestSz == NULL || *requestSz == 0 ||
             uri == NULL || (headers == NULL && headerCount > 0)) {
         return WOLFKM_BAD_ARGS;
     }
@@ -396,7 +396,7 @@ int wolfHttpClient_EncodeRequest(HttpMethodType type, const char* uri,
     for (c=0; c<(int)headerCount && remain > 0; c++) {
         hdr = &headers[c];
 
-        i = snprintf(out, remain, "%s%s\r\n", 
+        i = snprintf(out, remain, "%s%s\r\n",
             wolfHttpGetHeaderStr(hdr->type, NULL), hdr->string);
         if (i > 0) {
             out += i;
@@ -494,7 +494,7 @@ int wolfHttpUriDecode(const char *s, size_t sSz, char *dec, size_t decSz)
         if (idx + 1 > (int)decSz)
             return -1;
         if (*s == '%' &&
-                hex_to_char((char)s[1], &a) && 
+                hex_to_char((char)s[1], &a) &&
                 hex_to_char((char)s[2], &b)) {
             dec[idx++] = (a << 4 | b);
             s+=2;
@@ -534,7 +534,7 @@ int wolfHttpUrlDecode(HttpUrl* url, char* s)
         *dec = '\0';
         url->path = dec+1;
     }
-    
+
     /* find ":" */
     dec = strstr(s, ":");
     if (dec) {
@@ -565,7 +565,7 @@ int wolfHttpUriGetItem(const char* uri, const char* itemName, char* item,
             len = strlen(begin);
 
         /* perform URI decode */
-        ret = wolfHttpUriDecode(begin, len, item, itemSz); 
+        ret = wolfHttpUriDecode(begin, len, item, itemSz);
     }
     return ret;
 }

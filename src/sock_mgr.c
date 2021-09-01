@@ -135,9 +135,9 @@ static int GetAddrInfoString(struct evutil_addrinfo* addr, char* buf, size_t buf
     }
     if (addr) {
         ret = getnameinfo(
-            (struct sockaddr*)addr->ai_addr, 
-            (socklen_t)addr->ai_addrlen, 
-            hbuf, sizeof(hbuf), 
+            (struct sockaddr*)addr->ai_addr,
+            (socklen_t)addr->ai_addrlen,
+            hbuf, sizeof(hbuf),
             sbuf, sizeof(sbuf),
             (NI_NUMERICHOST | NI_NUMERICSERV));
         if (ret == 0) {
@@ -389,7 +389,7 @@ static void WorkerExit(void* arg)
     SvcConn *conn, *next;
 
     /* put per thread stats into global stats */
-    /* do this before closing active connections, 
+    /* do this before closing active connections,
         so we can see how many were connected */
     pthread_mutex_lock(&svc->globalStats.lock);
     svc->globalStats.totalConnections   += threadStats.totalConnections;
@@ -775,7 +775,7 @@ static int InitServerTLS(SvcInfo* svc)
     }
 
     if (svc->keyBuffer) {
-        ret = wolfSSL_CTX_use_PrivateKey_buffer(svc->sslCtx, svc->keyBuffer, 
+        ret = wolfSSL_CTX_use_PrivateKey_buffer(svc->sslCtx, svc->keyBuffer,
             svc->keyBufferSz, WOLFSSL_FILETYPE_ASN1);
         if (ret != WOLFSSL_SUCCESS) {
             XLOG(WOLFKM_LOG_ERROR, "Error loading TLS key into context\n");
@@ -785,7 +785,7 @@ static int InitServerTLS(SvcInfo* svc)
     }
 
     /* mutual authentication */
-    wolfSSL_CTX_set_verify(svc->sslCtx, 
+    wolfSSL_CTX_set_verify(svc->sslCtx,
         (WOLFSSL_VERIFY_PEER | WOLFSSL_VERIFY_FAIL_IF_NO_PEER_CERT), NULL);
 
     return 0;
@@ -855,7 +855,7 @@ void wolfKeyMgr_SignalCb(evutil_socket_t fd, short event, void* arg)
         wolfKeyMgr_ServiceCleanup(sigArg->svc[i]);
     }
 
-    wolfKeyMgr_CloseLog();    
+    wolfKeyMgr_CloseLog();
 
     (void)fd;
     (void)event;
@@ -903,7 +903,7 @@ void wolfKeyMgr_ShowStats(SvcInfo* svc)
     /* adjust max conncurrent since now per thread */
     if (local.maxConcurrent < svc->threadPoolSize)
         local.maxConcurrent = local.maxConcurrent ? 1 : 0;
-    else 
+    else
         local.maxConcurrent -= svc->threadPoolSize - 1;
 
     StatsPrint(&local);
@@ -1110,13 +1110,13 @@ int wolfKeyMgr_AddListeners(SvcInfo* svc, int af_v, const char* listenPort,
             (LEV_OPT_CLOSE_ON_FREE | LEV_OPT_CLOSE_ON_EXEC | LEV_OPT_REUSEABLE),
             -1, current->ai_addr, current->ai_addrlen);
         if (ls->ev_listen == NULL) {
-            XLOG(WOLFKM_LOG_WARN, "Failed to bind listener: Error %d: %s\n", 
+            XLOG(WOLFKM_LOG_WARN, "Failed to bind listener: Error %d: %s\n",
                 errno, strerror(errno));
             free(ls);
             ls = NULL;
         }
         current = current->ai_next;
-        
+
         if (ls) {
             addCount++;
             evconnlistener_set_error_cb(ls->ev_listen, OurListenerError);
@@ -1198,7 +1198,7 @@ void wolfKeyMgr_ServiceCleanup(SvcInfo* svc)
     /* cancel each thread */
     XLOG(WOLFKM_LOG_INFO, "Sending cancel to threads\n");
     for (i = 0; i < (int)svc->threadPoolSize; i++) {
-        if (write(svc->threads[i].notifySend, &kCancel, 
+        if (write(svc->threads[i].notifySend, &kCancel,
                 sizeof(kCancel)) != sizeof(kCancel)) {
             XLOG(WOLFKM_LOG_ERROR, "Write to cancel thread notify failed\n");
             return;
@@ -1249,12 +1249,12 @@ int wolfKeyMgr_NotifyAllClients(SvcInfo* svc)
     for (i = 0; i < (int)svc->threadPoolSize; i++) {
         EventThread* me = (EventThread*)&svc->threads[i];
         if (me->svc == svc) {
-            if (write(me->notifySend, &kNotify, sizeof(kNotify)) != 
+            if (write(me->notifySend, &kNotify, sizeof(kNotify)) !=
                     sizeof(kNotify)) {
                 XLOG(WOLFKM_LOG_ERROR, "Notify thread failed!\n");
             }
         }
-    }    
+    }
     return 0;
 }
 
@@ -1284,7 +1284,7 @@ int wolfKeyMgr_LoadKeyFile(SvcInfo* svc, const char* fileName, int fileType,
 
     if (fileType == WOLFSSL_FILETYPE_PEM) {
         ret = wc_KeyPemToDer(
-            svc->keyBuffer, svc->keyBufferSz, 
+            svc->keyBuffer, svc->keyBufferSz,
             svc->keyBuffer, svc->keyBufferSz,
             password);
         if (ret <= 0) {
@@ -1304,7 +1304,7 @@ int wolfKeyMgr_LoadKeyFile(SvcInfo* svc, const char* fileName, int fileType,
 int wolfKeyMgr_LoadCertFile(SvcInfo* svc, const char* fileName, int fileType)
 {
     int ret;
-    
+
     ret = wolfLoadFileBuffer(fileName, &svc->certBuffer, &svc->certBufferSz);
     if (ret != 0) {
         XLOG(WOLFKM_LOG_INFO, "error loading certificate file %s\n", fileName);
@@ -1314,11 +1314,11 @@ int wolfKeyMgr_LoadCertFile(SvcInfo* svc, const char* fileName, int fileType)
     if (fileType == WOLFSSL_FILETYPE_PEM) {
         /* convert to DER */
         ret = wc_CertPemToDer(
-            svc->certBuffer, svc->certBufferSz, 
+            svc->certBuffer, svc->certBufferSz,
             svc->certBuffer, svc->certBufferSz,
             CERT_TYPE);
         if (ret <= 0) {
-            XLOG(WOLFKM_LOG_ERROR, "Error converting file %s from PEM to DER: %d\n", 
+            XLOG(WOLFKM_LOG_ERROR, "Error converting file %s from PEM to DER: %d\n",
                 fileName, ret);
             free(svc->certBuffer); svc->certBuffer = NULL;
             return WOLFKM_BAD_CERT;
@@ -1333,7 +1333,7 @@ int wolfKeyMgr_LoadCertFile(SvcInfo* svc, const char* fileName, int fileType)
 int wolfKeyMgr_LoadCAFile(SvcInfo* svc, const char* fileName, int fileType)
 {
     int ret;
-    
+
     ret = wolfLoadFileBuffer(fileName, &svc->caBuffer, &svc->caBufferSz);
     if (ret != 0) {
         XLOG(WOLFKM_LOG_INFO, "error loading certificate file %s\n", fileName);
@@ -1343,11 +1343,11 @@ int wolfKeyMgr_LoadCAFile(SvcInfo* svc, const char* fileName, int fileType)
     if (fileType == WOLFSSL_FILETYPE_PEM) {
         /* convert to DER */
         ret = wc_CertPemToDer(
-            svc->caBuffer, svc->caBufferSz, 
+            svc->caBuffer, svc->caBufferSz,
             svc->caBuffer, svc->caBufferSz,
             CERT_TYPE);
         if (ret <= 0) {
-            XLOG(WOLFKM_LOG_ERROR, "Error converting file %s from PEM to DER: %d\n", 
+            XLOG(WOLFKM_LOG_ERROR, "Error converting file %s from PEM to DER: %d\n",
                 fileName, ret);
             free(svc->caBuffer); svc->caBuffer = NULL;
             return WOLFKM_BAD_CERT;
