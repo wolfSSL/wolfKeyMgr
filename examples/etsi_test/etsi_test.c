@@ -219,8 +219,8 @@ static void Usage(void)
     printf("-A <pem>    TLS CA Certificate, default %s\n", ETSI_TEST_CLIENT_CA);
     printf("-K <keyt>   Key Type: SECP256R1, FFDHE_2048, X25519 or X448 (default %s)\n",
         wolfEtsiKeyGetTypeStr(ETSI_TEST_KEY_TYPE));
-    printf("-F <fprint> Fingerprint used for multiple servers (first 80-bit of pkey hash as hex string)\n");
-    printf("-C <name>   Find key using public key name (hex string)\n");
+    printf("-F <fprint> Fingerprint to find (first 80-bit of pkey hash as hex string)\n");
+    printf("-C <name>   Unique key name (used for multiple servers)\n");
 }
 
 int etsi_test(int argc, char** argv)

@@ -87,6 +87,7 @@ int wolfEtsiClientConnect(EtsiClientCtx* client, const char* host,
     }
     else {
         XLOG(WOLFKM_LOG_ERROR, "Failure connecting to ETSI service %d\n", ret);
+        ret = WOLFKM_BAD_HOST;
     }
     wc_UnLockMutex(&client->lock);
 
