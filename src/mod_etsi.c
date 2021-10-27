@@ -278,7 +278,7 @@ static int EtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
             wolfHttpResponsePrint(rsp);
 
             /* move payload (body) to response (same buffer) */
-            memcpy(key->response, rsp->body, rsp->bodySz);
+            memmove(key->response, rsp->body, rsp->bodySz);
             key->responseSz = rsp->bodySz;
         }
         else {
