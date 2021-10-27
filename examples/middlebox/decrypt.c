@@ -48,6 +48,7 @@
     #include <netinet/in.h>
 #endif
 
+#define DEFAULT_SERVER_ADDR_FILTER "127.0.0.1"
 
 typedef unsigned char byte;
 
@@ -326,6 +327,22 @@ static void TrimNewLine(char* str)
         str[strSz-1] = '\0';
 }
 
+static void Usage(void)
+{
+    printf("%s %s\n",  "decrypt", PACKAGE_VERSION);
+    printf( "usage: ./decrypt or ./decrypt pcapFile keyServerURL"
+                " [server] [port] [password]\n");
+    printf("-?           Help, print this usage\n");
+    printf("pcapFile     A previously saved pcap file\n");
+    printf("keyServerURL Key Manager URL or private key as PEM (default %s)\n",
+        ETSI_TEST_URL);
+    printf("server       The server’s IP address (v4 or v6) (default %s)\n",
+        DEFAULT_SERVER_ADDR_FILTER);
+    printf("port         The server port to sniff (default %d)\n",
+        HTTPS_TEST_PORT);
+    printf("password     Private Key Password if required\n");
+}
+
 int middlebox_decrypt_test(int argc, char** argv)
 {
     int          ret = 0;
@@ -336,7 +353,7 @@ int middlebox_decrypt_test(int argc, char** argv)
     int          frame = ETHER_IF_FRAME_LEN;
     char         err[PCAP_ERRBUF_SIZE];
     char         filter[32];
-    const char  *keyFilesSrc = "https://" ETSI_TEST_HOST ":" ETSI_TEST_PORT_STR;
+    const char  *keyFilesSrc = ETSI_TEST_URL;
     char         keyFilesBuf[MAX_FILENAME_SZ];
     char         keyFilesUser[MAX_FILENAME_SZ];
     const char  *server = NULL;
@@ -346,6 +363,16 @@ int middlebox_decrypt_test(int argc, char** argv)
     pcap_addr_t *a;
 
     signal(SIGINT, sig_handler);
+
+    if (argc == 2 && 
+           (XSTRNCMP(argv[1], "-?", 2) == 0 ||
+            XSTRNCMP(argv[1], "-h", 2) == 0 ||
+            XSTRNCMP(argv[1], "--help", 6) == 0))
+    {
+        /* show usage */
+        Usage();
+        exit(EX_USAGE);
+    }
 
 #ifndef _WIN32
     ssl_InitSniffer();   /* dll load on Windows */
@@ -524,7 +551,7 @@ int middlebox_decrypt_test(int argc, char** argv)
 
             /* defaults for server and port */
             port = portDef;
-            server = "127.0.0.1";
+            server = DEFAULT_SERVER_ADDR_FILTER;
 
             if (argc >= 3)
                 keyFilesSrc = argv[2];
@@ -553,12 +580,6 @@ int middlebox_decrypt_test(int argc, char** argv)
                 exit(EXIT_FAILURE);
             }
         }
-    }
-    else {
-        /* usage error */
-        printf( "usage: ./decrypt or ./decrypt dumpFile keyServerURL"
-                " [server] [port] [password]\n");
-        exit(EXIT_FAILURE);
     }
 
     if (ret != 0)

@@ -26,14 +26,6 @@
 
 #include <signal.h>        /* signal */
 
-#ifndef EX_USAGE
-#define EX_USAGE 2
-#endif
-
-#ifndef EXIT_FAILURE
-#define EXIT_FAILURE 1
-#endif
-
 static volatile int mStop = 0;
 static WKM_SOCKET_T listenFd = WKM_SOCKET_INVALID;
 
@@ -62,8 +54,9 @@ static void Usage(void)
     printf("-?          Help, print this usage\n");
     printf("-d          Disable ETSI Key Manager loading\n");
     printf("-p <num>    Port to listen, default %d\n", HTTPS_TEST_PORT);
-    printf("-l <num>    Log Level (1=Error to 4=Debug), default %d\n", WOLFKM_DEFAULT_LOG_LEVEL);
-    printf("-h <keymgr> Key Manager URL (default %s)\n", "https://" ETSI_TEST_HOST ":" ETSI_TEST_PORT_STR);
+    printf("-l <num>    Log Level (1=Error to 4=Debug), default %d\n",
+        WOLFKM_DEFAULT_LOG_LEVEL);
+    printf("-h <keymgr> Key Manager URL (default %s)\n", ETSI_TEST_URL);
 }
 
 int https_server_test(int argc, char** argv)
@@ -79,7 +72,7 @@ int https_server_test(int argc, char** argv)
     SOCKADDR_IN_T clientAddr;
     int port = HTTPS_TEST_PORT;
     enum log_level_t logLevel = WOLFKM_DEFAULT_LOG_LEVEL;
-    const char* etsiServer = "https://" ETSI_TEST_HOST ":" ETSI_TEST_PORT_STR;
+    const char* etsiServer = ETSI_TEST_URL;
     int ch, useKeyMgr = 1;
 
     signal(SIGINT, sig_handler);

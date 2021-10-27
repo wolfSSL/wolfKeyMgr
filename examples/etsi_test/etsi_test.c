@@ -26,14 +26,6 @@
 #define WOLFKM_ETST_CLIENT_DEF_REQUESTS     1       /* per thread */
 #define WOLFKM_ETST_CLIENT_DEF_TIMEOUT_SEC 10
 
-#ifndef EX_USAGE
-#define EX_USAGE 2
-#endif
-
-#ifndef EXIT_FAILURE
-#define EXIT_FAILURE 1
-#endif
-
 #define REQ_TYPE_GET  1
 #define REQ_TYPE_PUSH 2
 #define REQ_TYPE_FIND 3
