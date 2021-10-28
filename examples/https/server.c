@@ -173,7 +173,7 @@ end_sess:
 
         /* Done - send TLS shutdown message */
         if (ssl) {
-            (void)wolfTlsClose(ssl, ret == 0 ? 1 : 0);
+            (void)wolfTlsClose(ssl, ret >= 0 ? 1 : 0);
             ssl = NULL;
         }
 
