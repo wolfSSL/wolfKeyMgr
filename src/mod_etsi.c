@@ -622,6 +622,8 @@ static int NamedGroupToDhParams(EtsiKeyType keyType,
     int ret = 0;
     const DhParams* params = NULL;
     word32 privKeySz = 0;
+    word32 pubKeySz = 0;
+    #ifdef HAVE_PUBLIC_FFDHE
     switch (keyType) {
     #ifdef HAVE_FFDHE_2048
         case ETSI_KEY_TYPE_FFDHE_2048:
@@ -647,10 +649,17 @@ static int NamedGroupToDhParams(EtsiKeyType keyType,
             ret = WOLFKM_NOT_COMPILED_IN;
             break;
     }
+    if (params)
+        pubKeySz = params->p_len;
+    #else
+        privKeySz = wc_DhGetNamedKeyMinSize((int)keyType);
+        ret = wc_DhGetNamedKeyParamSize((int)keyType, &pubKeySz, NULL, NULL);
+    #endif
+    
     if (pParams)
         *pParams = params;
-    if (pPubKeySz && params)
-        *pPubKeySz = params->p_len;
+    if (pPubKeySz)
+        *pPubKeySz = pubKeySz;
     if (pPrivKeySz)
         *pPrivKeySz = privKeySz;
     return ret;
@@ -837,7 +846,7 @@ static int GenNewKeyDh(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
     int ret;
     DhKey dh;
     const DhParams* params = NULL;
-    word32 privKeySz = 0, pubKeySz = 0;
+    word32 privKeySz = 0, pubKeySz = 0, p_len;
     byte privKey[MAX_DH_PRIV_SZ];
     byte pubKey[MAX_DH_PUB_SZ];
 
@@ -845,6 +854,7 @@ static int GenNewKeyDh(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
     if (ret != 0) {
         return ret;
     }
+    p_len = pubKeySz;
 
     ret = wc_InitDhKey(&dh);
     if (ret != 0) {
@@ -853,9 +863,13 @@ static int GenNewKeyDh(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
     }
 
     /* Set key params */
+#ifdef HAVE_PUBLIC_FFDHE
     ret = wc_DhSetKey(&dh,
         params->p, params->p_len,
         params->g, params->g_len);
+#else
+    ret = wc_DhSetNamedKey(&dh, (int)keyType);
+#endif
     if (ret == 0) {
         /* Generate a new key pair */
         ret = wc_DhGenerateKeyPair(&dh, rng,
@@ -863,10 +877,10 @@ static int GenNewKeyDh(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
             pubKey, &pubKeySz);
     }
     if (ret == 0) {
-        if (params->p_len != pubKeySz) {
+        if (p_len != pubKeySz) {
             /* Zero pad the front of the public key to match prime "p" size */
-            memmove(pubKey + params->p_len - pubKeySz, pubKey, pubKeySz);
-            memset(pubKey, 0, params->p_len - pubKeySz);
+            memmove(pubKey + p_len - pubKeySz, pubKey, pubKeySz);
+            memset(pubKey, 0, p_len - pubKeySz);
         }
 
         /* load public and private key info into DkKey */
