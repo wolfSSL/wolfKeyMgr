@@ -21,7 +21,7 @@
 
 #include "wolfkeymgr/mod_tls.h"
 #include "wolfkeymgr/mod_http.h"
-#include "wolfkeymgr/mod_etsi.h"
+#include "wolfkeymgr/mod_ets.h"
 #include "examples/test_config.h"
 
 #include <signal.h>        /* signal */
@@ -37,10 +37,10 @@ static void sig_handler(const int sig)
     mStop = 1;
 }
 
-static int etsi_key_cb(EtsiKey* key, void* cbCtx)
+static int ets_key_cb(EtsKey* key, void* cbCtx)
 {
     WOLFSSL_CTX* ctx = (WOLFSSL_CTX*)cbCtx;
-    int ret = wolfEtsiKeyLoadCTX(key, ctx);
+    int ret = wolfEtsKeyLoadCTX(key, ctx);
     if (ret == NOT_COMPILED_IN) {
         ret = 0; /* this is okay - if feature is not compiled in */
     }
@@ -52,11 +52,11 @@ static void Usage(void)
 {
     printf("%s %s\n",  "https/server", PACKAGE_VERSION);
     printf("-?          Help, print this usage\n");
-    printf("-d          Disable ETSI Key Manager loading\n");
+    printf("-d          Disable ETS Key Manager loading\n");
     printf("-p <num>    Port to listen, default %d\n", HTTPS_TEST_PORT);
     printf("-l <num>    Log Level (1=Error to 4=Debug), default %d\n",
         WOLFKM_DEFAULT_LOG_LEVEL);
-    printf("-h <keymgr> Key Manager URL (default %s)\n", ETSI_TEST_URL);
+    printf("-h <keymgr> Key Manager URL (default %s)\n", ETS_TEST_URL);
 }
 
 int https_server_test(int argc, char** argv)
@@ -72,7 +72,7 @@ int https_server_test(int argc, char** argv)
     SOCKADDR_IN_T clientAddr;
     int port = HTTPS_TEST_PORT;
     enum log_level_t logLevel = WOLFKM_DEFAULT_LOG_LEVEL;
-    const char* etsiServer = ETSI_TEST_URL;
+    const char* etsServer = ETS_TEST_URL;
     int ch, useKeyMgr = 1;
 
     signal(SIGINT, sig_handler);
@@ -97,7 +97,7 @@ int https_server_test(int argc, char** argv)
                 useKeyMgr = 0;
                 break;
             case 'h':
-                etsiServer = optarg;
+                etsServer = optarg;
                 break;
             default:
                 Usage();
@@ -129,7 +129,7 @@ int https_server_test(int argc, char** argv)
 
     do {
         if (useKeyMgr) {
-            ret = etsi_client_get_all(etsiServer, etsi_key_cb, ctx);
+            ret = ets_client_get_all(etsServer, ets_key_cb, ctx);
             if (ret != 0) {
                 printf("\nFailure connecting to key manager\n");
                 printf("Make sure ./src/wolfkeymgr is running\n");

@@ -24,7 +24,7 @@
 #if defined(WOLFKM_VAULT) && defined(WOLFKM_VAULT_ENC)
 /* key: returned AES key */
 /* keyEnc: key information stored in vault header */
-static int wolfEtsiSvcVaultAuthCb(wolfVaultCtx* ctx, byte* key, word32 keySz,
+static int wolfEtsSvcVaultAuthCb(wolfVaultCtx* ctx, byte* key, word32 keySz,
     byte* keyEnc, word32 keyEncSz, void* cbCtx)
 {
     int ret;
@@ -77,7 +77,7 @@ static int vault_test(void)
 
     #ifdef WOLFKM_VAULT_ENC
         /* setup security callback */
-        ret = wolfVaultAuth(ctx, wolfEtsiSvcVaultAuthCb, NULL);
+        ret = wolfVaultAuth(ctx, wolfEtsSvcVaultAuthCb, NULL);
     #endif
 
         /* add items */

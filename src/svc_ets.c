@@ -1,4 +1,4 @@
-/* svc_etsi.c
+/* svc_ets.c
  *
  * Copyright (C) 2006-2021 wolfSSL Inc.
  *
@@ -21,24 +21,24 @@
 
 #include "wolfkeymgr/keymanager.h"
 #include "wolfkeymgr/mod_http.h"
-#include "wolfkeymgr/mod_etsi.h"
+#include "wolfkeymgr/mod_ets.h"
 #include "wolfkeymgr/mod_vault.h"
 #include <wolfssl/wolfcrypt/rsa.h>
 
 /* determine maximum concurrent server's (based on fingerprint) */
-#ifndef ETSI_SVC_MAX_SERVERS
-#define ETSI_SVC_MAX_SERVERS     4
+#ifndef ETS_SVC_MAX_SERVERS
+#define ETS_SVC_MAX_SERVERS     4
 #endif
 /* determine maximum number of active keys */
-#ifndef ETSI_SVC_MAX_ACTIVE_KEYS
-#define ETSI_SVC_MAX_ACTIVE_KEYS (ETSI_SVC_MAX_SERVERS * 4)
+#ifndef ETS_SVC_MAX_ACTIVE_KEYS
+#define ETS_SVC_MAX_ACTIVE_KEYS (ETS_SVC_MAX_SERVERS * 4)
 #endif
 
 /* shared context for worker threads */
-typedef struct EtsiSvcCtx {
+typedef struct EtsSvcCtx {
     /* latest shared key data */
-    EtsiKey         keys[ETSI_SVC_MAX_ACTIVE_KEYS];
-    EtsiSvcConfig   config;
+    EtsKey         keys[ETS_SVC_MAX_ACTIVE_KEYS];
+    EtsSvcConfig   config;
 
     WC_RNG          rng;
     pthread_mutex_t lock;   /* shared lock */
@@ -53,18 +53,18 @@ typedef struct EtsiSvcCtx {
 #endif
 
     byte shutdown:1; /* signal to shutdown workers */
-} EtsiSvcCtx;
-static EtsiSvcCtx gSvcCtx;
+} EtsSvcCtx;
+static EtsSvcCtx gSvcCtx;
 
 /* The top level service */
-static SvcInfo gEtsiService = {
-    .desc = "ETSI",
+static SvcInfo gEtsService = {
+    .desc = "ETS",
 
     /* Callbacks */
-    .requestCb = wolfEtsiSvc_DoRequest,
-    .timeoutCb = wolfEtsiSvc_HandleTimeout,
-    .notifyCb = wolfEtsiSvc_DoNotify,
-    .closeCb = wolfEtsiSvc_ConnClose,
+    .requestCb = wolfEtsSvc_DoRequest,
+    .timeoutCb = wolfEtsSvc_HandleTimeout,
+    .notifyCb = wolfEtsSvc_DoNotify,
+    .closeCb = wolfEtsSvc_ConnClose,
 
     /* TLS Certificate and Buffer */
     .certBuffer = NULL,
@@ -78,15 +78,15 @@ static SvcInfo gEtsiService = {
 };
 
 /* connection object */
-typedef struct EtsiSvcConn {
+typedef struct EtsSvcConn {
     HttpReq req;
-    char    fingerprint[ETSI_MAX_FINGERPRINT_STR];
-    char    contextStr[ETSI_MAX_CONTEXT_STR];
-    word32  groupNum; /* same as enum EtsiKeyType */
-} EtsiSvcConn;
+    char    fingerprint[ETS_MAX_FINGERPRINT_STR];
+    char    contextStr[ETS_MAX_CONTEXT_STR];
+    word32  groupNum; /* same as enum EtsKeyType */
+} EtsSvcConn;
 
 #ifdef WOLFKM_VAULT
-static int AddKeyToVault(EtsiSvcCtx* svcCtx, EtsiKey* key)
+static int AddKeyToVault(EtsSvcCtx* svcCtx, EtsKey* key)
 {
     if (svcCtx->vault == NULL) {
         XLOG(WOLFKM_LOG_WARN, "AddKey: vault not open\n");
@@ -99,10 +99,10 @@ static int AddKeyToVault(EtsiSvcCtx* svcCtx, EtsiKey* key)
 }
 #endif
 
-static int EtsiSvcGenNewKey(EtsiSvcCtx* svcCtx, EtsiKeyType keyType, EtsiKey* key)
+static int EtsSvcGenNewKey(EtsSvcCtx* svcCtx, EtsKeyType keyType, EtsKey* key)
 {
     int ret = WOLFKM_NOT_COMPILED_IN;
-    const char* keyTypeStr = wolfEtsiKeyGetTypeStr(keyType);
+    const char* keyTypeStr = wolfEtsKeyGetTypeStr(keyType);
 
     if (svcCtx == NULL || key == NULL || keyTypeStr == NULL) {
         return WOLFKM_BAD_ARGS;
@@ -110,11 +110,11 @@ static int EtsiSvcGenNewKey(EtsiSvcCtx* svcCtx, EtsiKeyType keyType, EtsiKey* ke
 
     XLOG(WOLFKM_LOG_WARN, "Generating new %s key\n", keyTypeStr);
 
-    ret = wolfEtsiKeyGen(key, keyType, &svcCtx->rng);
+    ret = wolfEtsKeyGen(key, keyType, &svcCtx->rng);
     if (ret == 0) {
         key->expires = wolfGetCurrentTimeT() + svcCtx->config.renewSec;
 
-        wolfEtsiKeyPrint(key);
+        wolfEtsKeyPrint(key);
 
     #ifdef WOLFKM_VAULT
         ret = AddKeyToVault(svcCtx, key);
@@ -132,7 +132,7 @@ static int EtsiSvcGenNewKey(EtsiSvcCtx* svcCtx, EtsiKeyType keyType, EtsiKey* ke
     return ret;
 }
 
-static void WakeKeyGenWorker(EtsiSvcCtx* svcCtx)
+static void WakeKeyGenWorker(EtsSvcCtx* svcCtx)
 {
     /* signal key generation thread to wake */
     pthread_mutex_lock(&svcCtx->kgMutex);
@@ -140,21 +140,21 @@ static void WakeKeyGenWorker(EtsiSvcCtx* svcCtx)
     pthread_mutex_unlock(&svcCtx->kgMutex);
 }
 
-static int SetupKeyPackage(SvcConn* conn, EtsiSvcCtx* svcCtx)
+static int SetupKeyPackage(SvcConn* conn, EtsSvcCtx* svcCtx)
 {
     int ret = 0, i;
-    EtsiSvcConn* etsiConn;
+    EtsSvcConn* etsConn;
     HttpHeader headers[3];
     struct tm tm;
     char expiresStr[100];
-    EtsiKey* key = NULL;
+    EtsKey* key = NULL;
     int wakeKg = 0;
 
     if (conn == NULL || conn->svcConnCtx == NULL || svcCtx == NULL) {
         return WOLFKM_BAD_ARGS;
     }
 
-    etsiConn = (EtsiSvcConn*)conn->svcConnCtx;
+    etsConn = (EtsSvcConn*)conn->svcConnCtx;
 
     headers[0].type = HTTP_HDR_CONTENT_TYPE;
     headers[0].string = "application/pkcs8";
@@ -166,11 +166,11 @@ static int SetupKeyPackage(SvcConn* conn, EtsiSvcCtx* svcCtx)
 
     /* find key based on group and optional contextStr */
     pthread_mutex_lock(&svcCtx->lock);
-    for (i=0; i<ETSI_SVC_MAX_ACTIVE_KEYS; i++) {
-        if ((word32)svcCtx->keys[i].type == etsiConn->groupNum) {
-            word32 ctxStrSz = (word32)strlen(etsiConn->contextStr);
+    for (i=0; i<ETS_SVC_MAX_ACTIVE_KEYS; i++) {
+        if ((word32)svcCtx->keys[i].type == etsConn->groupNum) {
+            word32 ctxStrSz = (word32)strlen(etsConn->contextStr);
             if (ctxStrSz == 0 || (ctxStrSz == (word32)strlen(svcCtx->keys[i].contextStr) &&
-                    strncmp(svcCtx->keys[i].contextStr, etsiConn->contextStr, ctxStrSz) == 0)) {
+                    strncmp(svcCtx->keys[i].contextStr, etsConn->contextStr, ctxStrSz) == 0)) {
                 key = &svcCtx->keys[i];
                 break;
             }
@@ -179,7 +179,7 @@ static int SetupKeyPackage(SvcConn* conn, EtsiSvcCtx* svcCtx)
     /* if one doesn't exist for this group then trigger generation */
     if (key == NULL) {
         /* assign free slot */
-        for (i=0; i<ETSI_SVC_MAX_ACTIVE_KEYS; i++) {
+        for (i=0; i<ETS_SVC_MAX_ACTIVE_KEYS; i++) {
             if ((word32)svcCtx->keys[i].type == 0) {
                 key = &svcCtx->keys[i];
                 break;
@@ -188,18 +188,18 @@ static int SetupKeyPackage(SvcConn* conn, EtsiSvcCtx* svcCtx)
         /* if no free slots then find oldest key */
         if (key == NULL) {
             time_t oldestTime = 0;
-            for (i=0; i<ETSI_SVC_MAX_ACTIVE_KEYS; i++) {
+            for (i=0; i<ETS_SVC_MAX_ACTIVE_KEYS; i++) {
                 if (oldestTime == 0 || oldestTime > svcCtx->keys[i].expires)
                     oldestTime = svcCtx->keys[i].expires;
             }
-            for (i=0; i<ETSI_SVC_MAX_ACTIVE_KEYS; i++) {
+            for (i=0; i<ETS_SVC_MAX_ACTIVE_KEYS; i++) {
                 if (oldestTime == svcCtx->keys[i].expires) {
                     key = &svcCtx->keys[i];
                     break;
                 }
             }
         }
-        ret = EtsiSvcGenNewKey(svcCtx, etsiConn->groupNum, key);
+        ret = EtsSvcGenNewKey(svcCtx, etsConn->groupNum, key);
     }
 
     if (ret == 0) {
@@ -208,7 +208,7 @@ static int SetupKeyPackage(SvcConn* conn, EtsiSvcCtx* svcCtx)
         strftime(expiresStr, sizeof(expiresStr), HTTP_DATE_FMT, &tm);
 
         /* set contextStr */
-        strncpy(key->contextStr, etsiConn->contextStr, sizeof(key->contextStr));
+        strncpy(key->contextStr, etsConn->contextStr, sizeof(key->contextStr));
 
         /* increment use count */
         key->useCount++;
@@ -263,8 +263,8 @@ static void* KeyPushWorker(void* arg)
 {
     int ret, i;
     SvcInfo* svc = (SvcInfo*)arg;
-    EtsiSvcCtx* svcCtx = (EtsiSvcCtx*)svc->svcCtx;
-    EtsiKey* key;
+    EtsSvcCtx* svcCtx = (EtsSvcCtx*)svc->svcCtx;
+    EtsKey* key;
     time_t now, nextExpires;
     int renewSec, keyGenCount;
     struct timespec max_wait = {0, 0};
@@ -272,7 +272,7 @@ static void* KeyPushWorker(void* arg)
     /* generate default key */
     pthread_mutex_lock(&svcCtx->lock);
     key = &svcCtx->keys[0];
-    (void)EtsiSvcGenNewKey(svcCtx, svcCtx->config.keyTypeDef, key);
+    (void)EtsSvcGenNewKey(svcCtx, svcCtx->config.keyTypeDef, key);
     pthread_mutex_unlock(&svcCtx->lock);
 
     do {
@@ -282,8 +282,8 @@ static void* KeyPushWorker(void* arg)
         /* renew any expired keys */
         pthread_mutex_lock(&svcCtx->lock);
         now = wolfGetCurrentTimeT();
-        for (i=0; i<ETSI_SVC_MAX_ACTIVE_KEYS; i++) {
-            if (svcCtx->keys[i].type != ETSI_KEY_TYPE_UNKNOWN) {
+        for (i=0; i<ETS_SVC_MAX_ACTIVE_KEYS; i++) {
+            if (svcCtx->keys[i].type != ETS_KEY_TYPE_UNKNOWN) {
                 int expired, maxUses;
                 expired = (svcCtx->keys[i].expires > 0 &&
                                                 now >= svcCtx->keys[i].expires);
@@ -291,9 +291,9 @@ static void* KeyPushWorker(void* arg)
                                                     svcCtx->config.maxUseCount);
                 /* check if expired or use count exceeded */
                 if (expired || maxUses) {
-                    ret = EtsiSvcGenNewKey(svcCtx, svcCtx->keys[i].type,
+                    ret = EtsSvcGenNewKey(svcCtx, svcCtx->keys[i].type,
                         &svcCtx->keys[i]);
-                    (void)ret; /* ignore error, logged in EtsiSvcGenNewKey */
+                    (void)ret; /* ignore error, logged in EtsSvcGenNewKey */
 
                     keyGenCount++;
                     now = wolfGetCurrentTimeT(); /* refresh time after key gen */
@@ -331,108 +331,108 @@ static void* KeyPushWorker(void* arg)
     return NULL;
 }
 
-static int wolfEtsiSvc_DoResponse(SvcConn* conn)
+static int wolfEtsSvc_DoResponse(SvcConn* conn)
 {
     int ret;
 
     if (conn == NULL || conn->stream == NULL) {
-        XLOG(WOLFKM_LOG_ERROR, "Bad ETSI response pointers\n");
+        XLOG(WOLFKM_LOG_ERROR, "Bad ETS response pointers\n");
         return WOLFKM_BAD_ARGS;
     }
     if (conn->responseSz == 0) {
-        XLOG(WOLFKM_LOG_ERROR, "ETSI HTTP Response / Key not found!\n");
+        XLOG(WOLFKM_LOG_ERROR, "ETS HTTP Response / Key not found!\n");
         return WOLFKM_BAD_KEY;
     }
 
     /* send response, which is in the reused request buffer */
     ret = wolfKeyMgr_DoSend(conn, (byte*)conn->response, conn->responseSz);
     if (ret < 0) {
-        XLOG(WOLFKM_LOG_ERROR, "ETSI DoSend failed: %d\n", ret);
+        XLOG(WOLFKM_LOG_ERROR, "ETS DoSend failed: %d\n", ret);
         return WOLFKM_BAD_SEND;
     }
-    XLOG(WOLFKM_LOG_INFO, "Sent ETSI Response (%d bytes)\n", conn->responseSz);
+    XLOG(WOLFKM_LOG_INFO, "Sent ETS Response (%d bytes)\n", conn->responseSz);
 
     return ret;
 }
 
 /* The key request handler */
-int wolfEtsiSvc_DoRequest(SvcConn* conn)
+int wolfEtsSvc_DoRequest(SvcConn* conn)
 {
     int ret = 0;
     SvcInfo* svc;
-    EtsiSvcCtx* svcCtx;
-    EtsiSvcConn* etsiConn;;
+    EtsSvcCtx* svcCtx;
+    EtsSvcConn* etsConn;;
 
     if (conn == NULL || conn->svc == NULL || conn->stream == NULL) {
-        XLOG(WOLFKM_LOG_ERROR, "Bad ETSI Request pointers\n");
+        XLOG(WOLFKM_LOG_ERROR, "Bad ETS Request pointers\n");
         return WOLFKM_BAD_ARGS;
     }
 
-    XLOG(WOLFKM_LOG_INFO, "Got ETSI Request (%d bytes)\n", conn->requestSz);
+    XLOG(WOLFKM_LOG_INFO, "Got ETS Request (%d bytes)\n", conn->requestSz);
 
     if (conn->svcConnCtx == NULL) {
         /* Creating connection context */
         XLOG(WOLFKM_LOG_INFO, "Creating connection context\n");
-        conn->svcConnCtx = malloc(sizeof(EtsiSvcConn));
+        conn->svcConnCtx = malloc(sizeof(EtsSvcConn));
         if (conn->svcConnCtx == NULL) {
             return WOLFKM_BAD_MEMORY;
         }
-        memset(conn->svcConnCtx, 0, sizeof(EtsiSvcConn));
+        memset(conn->svcConnCtx, 0, sizeof(EtsSvcConn));
     }
     svc = conn->svc;
-    svcCtx = (EtsiSvcCtx*)svc->svcCtx;
-    etsiConn = (EtsiSvcConn*)conn->svcConnCtx;
+    svcCtx = (EtsSvcCtx*)svc->svcCtx;
+    etsConn = (EtsSvcConn*)conn->svcConnCtx;
 
-    ret = wolfHttpServer_ParseRequest(&etsiConn->req, conn->request,
+    ret = wolfHttpServer_ParseRequest(&etsConn->req, conn->request,
         conn->requestSz);
     if (ret < 0) {
-        XLOG(WOLFKM_LOG_ERROR, "ETSI HTTP Server Parse failed: %d\n", ret);
+        XLOG(WOLFKM_LOG_ERROR, "ETS HTTP Server Parse failed: %d\n", ret);
         return WOLFKM_BAD_REQUEST_TYPE;
     }
-    wolfHttpRequestPrint(&etsiConn->req);
+    wolfHttpRequestPrint(&etsConn->req);
 
     /* Get fingerprint */
-    if (wolfHttpUriGetItem(etsiConn->req.uri, "fingerprints=",
-        etsiConn->fingerprint, sizeof(etsiConn->fingerprint)) > 0) {
-        XLOG(WOLFKM_LOG_DEBUG, "Fingerprint: %s\n", etsiConn->fingerprint);
+    if (wolfHttpUriGetItem(etsConn->req.uri, "fingerprints=",
+        etsConn->fingerprint, sizeof(etsConn->fingerprint)) > 0) {
+        XLOG(WOLFKM_LOG_DEBUG, "Fingerprint: %s\n", etsConn->fingerprint);
     }
 
     /* Get groups - borrow contextStr variable */
-    if (wolfHttpUriGetItem(etsiConn->req.uri, "groups=",
-        etsiConn->contextStr, sizeof(etsiConn->contextStr)) > 0) {
+    if (wolfHttpUriGetItem(etsConn->req.uri, "groups=",
+        etsConn->contextStr, sizeof(etsConn->contextStr)) > 0) {
         const char* groupName;
-        etsiConn->groupNum = (word32)strtol(etsiConn->contextStr, NULL, 16);
-        groupName = wolfEtsiKeyGetTypeStr((EtsiKeyType)etsiConn->groupNum);
+        etsConn->groupNum = (word32)strtol(etsConn->contextStr, NULL, 16);
+        groupName = wolfEtsKeyGetTypeStr((EtsKeyType)etsConn->groupNum);
         XLOG(WOLFKM_LOG_DEBUG, "Group: %s (%d)\n",
-            groupName, etsiConn->groupNum);
+            groupName, etsConn->groupNum);
         if (groupName == NULL) {
-            etsiConn->groupNum = 0;
+            etsConn->groupNum = 0;
         }
         /* clear borrowed contextStr */
-        memset(etsiConn->contextStr, 0, sizeof(etsiConn->contextStr));
+        memset(etsConn->contextStr, 0, sizeof(etsConn->contextStr));
     }
 
     /* Get context string */
-    if (wolfHttpUriGetItem(etsiConn->req.uri, "contextstr=",
-        etsiConn->contextStr, sizeof(etsiConn->contextStr)) > 0) {
-        XLOG(WOLFKM_LOG_DEBUG, "Context: %s\n", etsiConn->contextStr);
+    if (wolfHttpUriGetItem(etsConn->req.uri, "contextstr=",
+        etsConn->contextStr, sizeof(etsConn->contextStr)) > 0) {
+        XLOG(WOLFKM_LOG_DEBUG, "Context: %s\n", etsConn->contextStr);
     }
 
 #ifdef WOLFKM_VAULT
     /* find uses fingerprint only */
-    if (etsiConn->groupNum > 0 && strlen(etsiConn->fingerprint) > 0) {
+    if (etsConn->groupNum > 0 && strlen(etsConn->fingerprint) > 0) {
         wolfVaultItem item;
         byte name[WOLFKM_VAULT_NAME_MAX_SZ];
         word32 nameSz = (word32)sizeof(name);
         memset(&item, 0, sizeof(item));
-        ret = wolfHexStringToByte(etsiConn->fingerprint,
-            strlen(etsiConn->fingerprint), name, nameSz);
+        ret = wolfHexStringToByte(etsConn->fingerprint,
+            strlen(etsConn->fingerprint), name, nameSz);
         if (ret > 0) {
             nameSz = ret;
             ret = 0;
         }
         if (ret == 0) {
-            ret = wolfVaultGet(svcCtx->vault, &item, etsiConn->groupNum,
+            ret = wolfVaultGet(svcCtx->vault, &item, etsConn->groupNum,
                 name, nameSz);
             if (ret == 0) {
                 ret = SetupKeyFindResponse(conn, &item);
@@ -442,7 +442,7 @@ int wolfEtsiSvc_DoRequest(SvcConn* conn)
     }
     else
 #endif
-    if (etsiConn->groupNum > 0) {
+    if (etsConn->groupNum > 0) {
         ret = SetupKeyPackage(conn, svcCtx);
     }
 
@@ -452,13 +452,13 @@ int wolfEtsiSvc_DoRequest(SvcConn* conn)
 
     /* Send Response */
     if (ret == 0) {
-        ret = wolfEtsiSvc_DoResponse(conn);
+        ret = wolfEtsSvc_DoResponse(conn);
     }
 
     return ret;
 }
 
-void wolfEtsiSvc_ConnClose(SvcConn* conn)
+void wolfEtsSvc_ConnClose(SvcConn* conn)
 {
     if (conn && conn->svcConnCtx) {
         free(conn->svcConnCtx);
@@ -466,60 +466,60 @@ void wolfEtsiSvc_ConnClose(SvcConn* conn)
     }
 }
 
-int wolfEtsiSvc_DoNotify(SvcConn* conn)
+int wolfEtsSvc_DoNotify(SvcConn* conn)
 {
     int ret = 0;
     SvcInfo* svc;
-    EtsiSvcCtx* svcCtx;
-    EtsiSvcConn* etsiConn;
+    EtsSvcCtx* svcCtx;
+    EtsSvcConn* etsConn;
 
     if (conn == NULL || conn->svc == NULL) {
-        XLOG(WOLFKM_LOG_ERROR, "Bad ETSI notify pointers\n");
+        XLOG(WOLFKM_LOG_ERROR, "Bad ETS notify pointers\n");
         return WOLFKM_BAD_ARGS;
     }
 
     svc = conn->svc;
-    svcCtx = (EtsiSvcCtx*)svc->svcCtx;
-    etsiConn = (EtsiSvcConn*)conn->svcConnCtx;
+    svcCtx = (EtsSvcCtx*)svc->svcCtx;
+    etsConn = (EtsSvcConn*)conn->svcConnCtx;
 
-    if (etsiConn != NULL && etsiConn->req.type == HTTP_METHOD_PUT) {
+    if (etsConn != NULL && etsConn->req.type == HTTP_METHOD_PUT) {
         /* update key */
         ret = SetupKeyPackage(conn, svcCtx);
 
         /* push key to active push threads */
         if (ret == 0)  {
             /* send updated key */
-            ret = wolfEtsiSvc_DoResponse(conn);
+            ret = wolfEtsSvc_DoResponse(conn);
         }
     }
 
     return ret;
 }
 
-int wolfEtsiSvc_HandleTimeout(SvcConn* conn)
+int wolfEtsSvc_HandleTimeout(SvcConn* conn)
 {
-    EtsiSvcConn* etsiConn;
+    EtsSvcConn* etsConn;
 
     if (conn == NULL || conn->svcConnCtx == NULL) {
-        XLOG(WOLFKM_LOG_ERROR, "Bad ETSI timeout pointers\n");
+        XLOG(WOLFKM_LOG_ERROR, "Bad ETS timeout pointers\n");
         return WOLFKM_BAD_ARGS;
     }
 
-    etsiConn = (EtsiSvcConn*)conn->svcConnCtx;
+    etsConn = (EtsSvcConn*)conn->svcConnCtx;
 
     /* if we received an HTTP request then keep open */
-    if (etsiConn->req.type != HTTP_METHOD_UNKNOWN) {
+    if (etsConn->req.type != HTTP_METHOD_UNKNOWN) {
         return 0; /* keep open (return non-zero value to close connection) */
     }
     return 1; /* close connection */
 }
 
-SvcInfo* wolfEtsiSvc_Init(const EtsiSvcConfig* config)
+SvcInfo* wolfEtsSvc_Init(const EtsSvcConfig* config)
 
 {
     int ret;
-    SvcInfo* svc = &gEtsiService;
-    EtsiSvcCtx* svcCtx = (EtsiSvcCtx*)svc->svcCtx;
+    SvcInfo* svc = &gEtsService;
+    EtsSvcCtx* svcCtx = (EtsSvcCtx*)svc->svcCtx;
 
     /* capture configuration */
     memcpy(&svcCtx->config, config, sizeof(*config));
@@ -535,16 +535,16 @@ SvcInfo* wolfEtsiSvc_Init(const EtsiSvcConfig* config)
     return svc;
 }
 
-int wolfEtsiSvc_Start(SvcInfo* svc, struct event_base* mainBase,
+int wolfEtsSvc_Start(SvcInfo* svc, struct event_base* mainBase,
     const char* listenPort)
 {
     int ret;
-    EtsiSvcCtx* svcCtx;
+    EtsSvcCtx* svcCtx;
 
     if (svc == NULL)
         return WOLFKM_BAD_ARGS;
 
-    svcCtx = (EtsiSvcCtx*)svc->svcCtx;
+    svcCtx = (EtsSvcCtx*)svc->svcCtx;
 
     /* setup key gen cond signal */
     pthread_mutex_init(&svcCtx->kgMutex, NULL);
@@ -568,10 +568,10 @@ int wolfEtsiSvc_Start(SvcInfo* svc, struct event_base* mainBase,
     return ret;
 }
 
-void wolfEtsiSvc_Cleanup(SvcInfo* svc)
+void wolfEtsSvc_Cleanup(SvcInfo* svc)
 {
     if (svc) {
-        EtsiSvcCtx* svcCtx = (EtsiSvcCtx*)svc->svcCtx;
+        EtsSvcCtx* svcCtx = (EtsSvcCtx*)svc->svcCtx;
 
         if (svc->keyBuffer) {
             free(svc->keyBuffer);
@@ -603,7 +603,7 @@ void wolfEtsiSvc_Cleanup(SvcInfo* svc)
 #if defined(WOLFKM_VAULT) && defined(WOLFKM_VAULT_ENC)
 /* key: returned AES key */
 /* keyEnc: key information stored in vault header */
-static int wolfEtsiSvcVaultAuthCb(wolfVaultCtx* ctx, byte* key, word32 keySz,
+static int wolfEtsSvcVaultAuthCb(wolfVaultCtx* ctx, byte* key, word32 keySz,
     byte* keyEnc, word32 keyEncSz, void* cbCtx)
 {
     int ret;
@@ -716,23 +716,23 @@ static int wolfEtsiSvcVaultAuthCb(wolfVaultCtx* ctx, byte* key, word32 keySz,
 }
 #endif
 
-int wolfEtsiSvc_SetVaultFile(SvcInfo* svc, const char* vaultFile)
+int wolfEtsSvc_SetVaultFile(SvcInfo* svc, const char* vaultFile)
 {
     int ret = 0;
-    EtsiSvcCtx* svcCtx;
+    EtsSvcCtx* svcCtx;
 
     if (svc == NULL || vaultFile == NULL)
         return WOLFKM_BAD_ARGS;
 
 
-    svcCtx = (EtsiSvcCtx*)svc->svcCtx;
+    svcCtx = (EtsSvcCtx*)svc->svcCtx;
 #ifdef WOLFKM_VAULT
     ret = wolfVaultOpen(&svcCtx->vault, vaultFile);
     if (ret == 0) {
         wolfVaultPrintInfo(svcCtx->vault);
 
     #ifdef WOLFKM_VAULT_ENC
-        ret = wolfVaultAuth(svcCtx->vault, wolfEtsiSvcVaultAuthCb, svc);
+        ret = wolfVaultAuth(svcCtx->vault, wolfEtsSvcVaultAuthCb, svc);
     #endif
     }
 #endif

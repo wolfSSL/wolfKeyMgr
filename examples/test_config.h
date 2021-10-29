@@ -22,26 +22,26 @@
 #ifndef WKM_TEST_CONFIG_G
 #define WKM_TEST_CONFIG_G
 
-#include "wolfkeymgr/mod_etsi.h"
+#include "wolfkeymgr/mod_ets.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* ETSI client testing configuration */
-#define ETSI_TEST_HOST            "localhost"
-#define ETSI_TEST_PORT            8119
-#define ETSI_TEST_PORT_STR        "8119"
-#define ETSI_TEST_TIMEOUT_MS      2
-#define ETSI_TEST_KEY_TYPE        ETSI_KEY_TYPE_SECP256R1
-#define ETSI_TEST_URL             "https://" ETSI_TEST_HOST ":" ETSI_TEST_PORT_STR
+/* ETS client testing configuration */
+#define ETS_TEST_HOST             "localhost"
+#define ETS_TEST_PORT             8119
+#define ETS_TEST_PORT_STR         "8119"
+#define ETS_TEST_TIMEOUT_MS       2
+#define ETS_TEST_KEY_TYPE         ETS_KEY_TYPE_SECP256R1
+#define ETS_TEST_URL              "https://" ETS_TEST_HOST ":" ETS_TEST_PORT_STR
 
 /* Example certificate and key for mutual authentication to key manager.
  * See ./certs/test-cert.sh for generation and signing. */
-#define ETSI_TEST_CLIENT_CA       "certs/ca-cert.pem"
-#define ETSI_TEST_CLIENT_KEY      "certs/client-key.pem"
-#define ETSI_TEST_CLIENT_PASS     "wolfssl"
-#define ETSI_TEST_CLIENT_CERT     "certs/client-cert.pem"
+#define ETS_TEST_CLIENT_CA        "certs/ca-cert.pem"
+#define ETS_TEST_CLIENT_KEY       "certs/client-key.pem"
+#define ETS_TEST_CLIENT_PASS      "wolfssl"
+#define ETS_TEST_CLIENT_CERT      "certs/client-cert.pem"
 
 /* HTTPS testing configuration */
 #define HTTPS_TEST_HOST           "localhost"
@@ -59,13 +59,13 @@ extern "C" {
 #define HTTPS_TEST_REQUEST        "/index.html"
 #define HTTPS_TEST_RESPONSE       "<html><body><h1>It works!</h1></body></html>"
 
-/* ETSI Client Helper Functions */
-typedef int (*etsi_client_key_cb)(EtsiKey* key, void* cbCtx);
-int  etsi_client_connect(const char* urlStr);
-int  etsi_client_get(const char* urlStr, EtsiKey* key, int keyType);
-int  etsi_client_get_all(const char* urlStr, etsi_client_key_cb cb, void* cbCtx);
-int  etsi_client_find(const char* urlStr, EtsiKey* key, int namedGroup, const byte* pub, word32 pubSz);
-void etsi_client_cleanup(void);
+/* ETS Client Helper Functions */
+typedef int (*ets_client_key_cb)(EtsKey* key, void* cbCtx);
+int  ets_client_connect(const char* urlStr);
+int  ets_client_get(const char* urlStr, EtsKey* key, int keyType);
+int  ets_client_get_all(const char* urlStr, ets_client_key_cb cb, void* cbCtx);
+int  ets_client_find(const char* urlStr, EtsKey* key, int namedGroup, const byte* pub, word32 pubSz);
+void ets_client_cleanup(void);
 
 
 #ifndef EX_USAGE

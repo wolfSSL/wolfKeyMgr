@@ -19,9 +19,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
-/* Support for ETSI Key Manager Middle-box Decryption */
+/* Support for ETS Key Manager Middle-box Decryption */
 
-#include "wolfkeymgr/mod_etsi.h"
+#include "wolfkeymgr/mod_ets.h"
 #include "examples/middlebox/decrypt.h"
 #include "examples/test_config.h"
 
@@ -71,19 +71,19 @@ static int myKeyCb(void* vSniffer, int namedGroup,
 {
     int ret;
     int keyType;
-    EtsiKey* key = NULL;
+    EtsKey* key = NULL;
 #ifdef HAVE_ECC
-    static EtsiKey keyEcc;
+    static EtsKey keyEcc;
 #endif
 #ifndef NO_DH
-    static EtsiKey keyDh;
+    static EtsKey keyDh;
 #endif
 #ifdef HAVE_CURVE25519
-    static EtsiKey keyX25519;
+    static EtsKey keyX25519;
 #endif
 
     /* lookup based on key type */
-    keyType = wolfEtsiGetPkType(namedGroup);
+    keyType = wolfEtsGetPkType(namedGroup);
     switch (keyType) {
         case WC_PK_TYPE_ECDH:
         #ifdef HAVE_ECC
@@ -111,11 +111,11 @@ static int myKeyCb(void* vSniffer, int namedGroup,
         return 0; /* return, but do not fail */
     }
 
-    ret = etsi_client_find(NULL, key, namedGroup, srvPub, srvPubSz);
+    ret = ets_client_find(NULL, key, namedGroup, srvPub, srvPubSz);
     if (ret >= 0) {
         byte* keyBuf = NULL;
         word32 keySz = 0;
-        wolfEtsiKeyGetPtr(key, &keyBuf, &keySz);
+        wolfEtsKeyGetPtr(key, &keyBuf, &keySz);
 
         if (privKey->length <= keySz) {
             memcpy(privKey->buffer, keyBuf, keySz);
@@ -233,14 +233,14 @@ typedef struct {
     int port;
 } LoadKeyInfo_t;
 
-static int etsi_key_cb(EtsiKey* key, void* cbCtx)
+static int ets_key_cb(EtsKey* key, void* cbCtx)
 {
     int ret;
     byte* keyBuf = NULL;
     word32 keySz = 0;
     LoadKeyInfo_t* info = (LoadKeyInfo_t*)cbCtx;
 
-    wolfEtsiKeyGetPtr(key, &keyBuf, &keySz);
+    wolfEtsKeyGetPtr(key, &keyBuf, &keySz);
 #ifdef HAVE_SNI
     ret = ssl_SetNamedEphemeralKeyBuffer(info->name, info->server, info->port,
         (char*)keyBuf, keySz, FILETYPE_DER, info->passwd, info->err);
@@ -252,7 +252,7 @@ static int etsi_key_cb(EtsiKey* key, void* cbCtx)
     if (ret != 0) {
         /* log error, but do not fail */
         fprintf(stderr, "Error loading private key %s: ret %d\n",
-            wolfEtsiKeyGetTypeStr(key->type), ret);
+            wolfEtsKeyGetTypeStr(key->type), ret);
         ret = 0; /* this is okay */
     }
     return ret;
@@ -280,9 +280,9 @@ static int load_key(const char* name, const char* server, int port,
             info.passwd = passwd;
             info.err = err;
             /* setup connection */
-            ret = etsi_client_get_all(keyFile, etsi_key_cb, &info);
+            ret = ets_client_get_all(keyFile, ets_key_cb, &info);
             if (ret < 0) {
-                fprintf(stderr, "Error connecting to ETSI server: %s\n", keyFile);
+                fprintf(stderr, "Error connecting to ETS server: %s\n", keyFile);
             }
         }
         else {
@@ -335,7 +335,7 @@ static void Usage(void)
     printf("-?           Help, print this usage\n");
     printf("pcapFile     A previously saved pcap file\n");
     printf("keyServerURL Key Manager URL or private key as PEM (default %s)\n",
-        ETSI_TEST_URL);
+        ETS_TEST_URL);
     printf("server       The server’s IP address (v4 or v6) (default %s)\n",
         DEFAULT_SERVER_ADDR_FILTER);
     printf("port         The server port to sniff (default %d)\n",
@@ -353,7 +353,7 @@ int middlebox_decrypt_test(int argc, char** argv)
     int          frame = ETHER_IF_FRAME_LEN;
     char         err[PCAP_ERRBUF_SIZE];
     char         filter[32];
-    const char  *keyFilesSrc = ETSI_TEST_URL;
+    const char  *keyFilesSrc = ETS_TEST_URL;
     char         keyFilesBuf[MAX_FILENAME_SZ];
     char         keyFilesUser[MAX_FILENAME_SZ];
     const char  *server = NULL;
@@ -492,7 +492,7 @@ int middlebox_decrypt_test(int argc, char** argv)
             fprintf(stderr, "pcap_setfilter failed %s\n", pcap_geterr(gPcap));
         }
 
-        /* specify the key file or URL for ETSI key manager */
+        /* specify the key file or URL for ETS key manager */
         printf("Enter the server key [default: %s]: ", keyFilesSrc);
         memset(keyFilesBuf, 0, sizeof(keyFilesBuf));
         memset(keyFilesUser, 0, sizeof(keyFilesUser));

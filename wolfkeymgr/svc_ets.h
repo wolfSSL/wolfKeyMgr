@@ -1,4 +1,4 @@
-/* svc_etsi.h
+/* svc_ets.h
  *
  * Copyright (C) 2006-2021 wolfSSL Inc.
  *
@@ -19,33 +19,33 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
-#ifndef WOLFKM_SVC_ETSI_H
-#define WOLFKM_SVC_ETSI_H
+#ifndef WOLFKM_SVC_ETS_H
+#define WOLFKM_SVC_ETS_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct EtsiSvcConfig {
-    EtsiKeyType     keyTypeDef; /* default key type */
+typedef struct EtsSvcConfig {
+    EtsKeyType     keyTypeDef; /* default key type */
     word32          renewSec;
     word32          maxUseCount;
-} EtsiSvcConfig;
+} EtsSvcConfig;
 
 
-WOLFKM_LOCAL SvcInfo* wolfEtsiSvc_Init(const EtsiSvcConfig* config);
-WOLFKM_LOCAL int wolfEtsiSvc_Start(SvcInfo* svc, struct event_base* mainBase, const char* listenPort);
-WOLFKM_LOCAL void wolfEtsiSvc_Cleanup(SvcInfo* svc);
+WOLFKM_LOCAL SvcInfo* wolfEtsSvc_Init(const EtsSvcConfig* config);
+WOLFKM_LOCAL int wolfEtsSvc_Start(SvcInfo* svc, struct event_base* mainBase, const char* listenPort);
+WOLFKM_LOCAL void wolfEtsSvc_Cleanup(SvcInfo* svc);
 
-WOLFKM_LOCAL int wolfEtsiSvc_DoRequest(SvcConn* conn);
-WOLFKM_LOCAL int wolfEtsiSvc_HandleTimeout(SvcConn* conn);
-WOLFKM_LOCAL int wolfEtsiSvc_DoNotify(SvcConn* conn);
-WOLFKM_LOCAL void wolfEtsiSvc_ConnClose(SvcConn* conn);
+WOLFKM_LOCAL int wolfEtsSvc_DoRequest(SvcConn* conn);
+WOLFKM_LOCAL int wolfEtsSvc_HandleTimeout(SvcConn* conn);
+WOLFKM_LOCAL int wolfEtsSvc_DoNotify(SvcConn* conn);
+WOLFKM_LOCAL void wolfEtsSvc_ConnClose(SvcConn* conn);
 
-WOLFKM_LOCAL int wolfEtsiSvc_SetVaultFile(SvcInfo* svc, const char* vaultFile);
+WOLFKM_LOCAL int wolfEtsSvc_SetVaultFile(SvcInfo* svc, const char* vaultFile);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* WOLFKM_SVC_ETSI_H */
+#endif /* WOLFKM_SVC_ETS_H */

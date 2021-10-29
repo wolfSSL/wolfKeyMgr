@@ -4,4 +4,4 @@
 
 
 EXTRA_DIST += docs/README.md
-EXTRA_DIST += docs/ETSI-Components.png
+EXTRA_DIST += docs/ETS-Components.png

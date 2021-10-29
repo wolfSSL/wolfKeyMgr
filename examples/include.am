@@ -2,7 +2,7 @@
 # included from Top Level Makefile.am
 # All paths should be given relative to the root
 
-include examples/etsi_test/include.am
+include examples/ets_test/include.am
 include examples/middlebox/include.am
 include examples/https/include.am
 
