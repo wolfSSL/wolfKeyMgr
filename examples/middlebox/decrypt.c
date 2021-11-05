@@ -81,6 +81,9 @@ static int myKeyCb(void* vSniffer, int namedGroup,
 #ifdef HAVE_CURVE25519
     static EtsKey keyX25519;
 #endif
+#ifdef HAVE_CURVE448
+    static EtsKey keyX448;
+#endif
 
     /* lookup based on key type */
     keyType = wolfEtsGetPkType(namedGroup);
@@ -101,7 +104,10 @@ static int myKeyCb(void* vSniffer, int namedGroup,
         #endif
             break;
         case WC_PK_TYPE_CURVE448:
-            /* curve448 not yet supported in sniffer */
+        #ifdef HAVE_CURVE448
+            key = &keyX448;
+        #endif
+            break;
         default:
             /* not supported */
             key = NULL;
