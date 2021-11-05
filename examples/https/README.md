@@ -2,7 +2,7 @@
 
 These examples demonstrate a basic HTTPS server and client for testing the ETS middle-box decryption with the wolf Key Manager tool.
 
-## TlS Server
+## TLS Server
 
 Usage: `./examples/https/server`
 

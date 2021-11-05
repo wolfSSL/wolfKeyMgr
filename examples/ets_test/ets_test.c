@@ -57,7 +57,7 @@ typedef struct WorkThreadCtx {
 /* for error response in errorMode, 0 on success */
 static int DoErrorMode(void)
 {
-    /* TODO: Add error case */
+    /* TODO: Add code to test expected error cases */
 
     return 0;
 }

@@ -131,8 +131,8 @@ int https_server_test(int argc, char** argv)
         if (useKeyMgr) {
             ret = ets_client_get_all(etsServer, ets_key_cb, ctx);
             if (ret != 0) {
-                printf("\nFailure connecting to key manager\n");
-                printf("Make sure ./src/wolfkeymgr is running\n");
+                fprintf(stderr, "\nFailure connecting to key manager\n");
+                fprintf(stderr, "Make sure ./src/wolfkeymgr is running\n");
                 mStop = 1;
                 goto end_sess;
             }
