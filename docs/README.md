@@ -1,10 +1,10 @@
-# wolf Key Manager ETSI Reference
+# wolf Key Manager ETS Reference
 
 Based on [ETSI TS 103 523-3 V1.3.1](https://www.etsi.org/deliver/etsi_ts/103500_103599/10352303/01.03.01_60/ts_10352303v010301p.pdf)
 
 ## Components
 
-![ETSI Components](ETSI-Components.png)
+![ETS Components](ETS-Components.png)
 
 * Key Manager (`src/wolfkeymgr`)
 * Enterprise Transport Security Server (`examples/https/server` or Apache httpd, nginx, etc...)
@@ -12,9 +12,9 @@ Based on [ETSI TS 103 523-3 V1.3.1](https://www.etsi.org/deliver/etsi_ts/103500_
 * TLS v1.3 client (browser or `examples/https/client`)
 * Asymmetric Key Package (RFC 5958 - PKCS8)
 
-## ETSI Security
+## ETS Security
 
-All communication between consumer and ETSI Key Manager will use TLS v1.3 with mutual authentication.
+All communication between consumer and ETS Key Manager will use TLS v1.3 with mutual authentication.
 
 The Enterprise Transport Security profile does not provide per-session forward secrecy. Knowledge of a given static private key can be used to decrypt all sessions encrypted with that key, and forward secrecy for all of those sessions begins when all copies of that static private key have been destroyed.
 
@@ -22,11 +22,11 @@ Typically an organization will use standard TLS 1.3 to connect with external cli
 
 An organization can rotate their keys as frequently as they choose.
 
-The use of X.509 Visibility Information in the TLS server certificate should be used, but is not required for private internal use. The visibility information OID 0.4.0.3523.3.1 provides a public way to indicate the ETSI security profile is being used.
+The use of X.509 Visibility Information in the TLS server certificate should be used, but is not required for private internal use. The visibility information OID 0.4.0.3523.3.1 provides a public way to indicate the ETS security profile is being used.
 
-## ETSI (Enterprise Transport Security)
+## ETS (Enterprise Transport Security)
 
-### ETSI Request Case (HTTPS GET)
+### ETS Request Case (HTTPS GET)
 
 `GET /.well-known/enterprise-transport-security/keys?fingerprints=[fingerprints]`, where:
 
@@ -43,7 +43,7 @@ GET /.well-known/enterprise-transport-security/keys?fingerprints=000102030405060
 Accept: application/pkcs8, application/cms
 ```
 
-### ETSI Request with Groups (key type)
+### ETS Request with Groups (key type)
 
 `GET /.well-known/enterprise-transport- security/keys?groups=[groups]&certs=[sigalgs]&context=contextstr`, where:
 
@@ -64,7 +64,7 @@ GET /.well-known/enterprise-transport-security/keys?groups=0x0018,0x001d&certs=0
 Accept: application/pkcs8
 ```
 
-### ETSI Push (HTTPS PUT)
+### ETS Push (HTTPS PUT)
 
 The key consumer shall support receiving a key package via an HTTP PUT request to a request-target, given here in origin-form, of:
 `/enterprise-transport-security/keys`
@@ -88,7 +88,7 @@ in the Asymmetric Key Package shall have the following fields set as follows:
 
 ### Server Certificate Visibility
 
-The ETSI specification part 3 section 4.3.3 requires the TLS server to present a "visibility" information field indicating "Enterprise Transport Security" is being used.
+The ETSI ETS specification part 3 section 4.3.3 requires the TLS server to present a "visibility" information field indicating "Enterprise Transport Security" is being used.
 
 ```
 VisibilityInformation ::= SEQUENCE {

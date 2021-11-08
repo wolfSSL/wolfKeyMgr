@@ -233,6 +233,12 @@ static int wolfTlsInitSslDefaults(WOLFSSL_CTX* ctx, WOLFSSL** ssl)
         wolfSSL_SetIOReadCtx(tssl, cbCtx);
         wolfSSL_SetIOWriteCtx(tssl, cbCtx);
 
+    #if 0
+        /* Example for forcing a key share type (see ssl.h Named Groups enum).
+         * WOLFSSL_FFDHE_2048, WOLFSSL_ECC_X25519, WOLFSSL_ECC_X448, etc... */
+        wolfSSL_UseKeyShare(tssl, WOLFSSL_ECC_SECP256R1);
+    #endif
+
         *ssl = tssl;
     }
     return 0;

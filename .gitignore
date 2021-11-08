@@ -40,7 +40,7 @@ diff
 # applications
 src/wolfkeymgr
 examples/middlebox/decrypt
-examples/etsi_test/etsi_test
+examples/ets_test/ets_test
 examples/https/client
 examples/https/server
 libtool

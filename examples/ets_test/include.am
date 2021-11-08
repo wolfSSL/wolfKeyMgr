@@ -1,0 +1,10 @@
+# vim:ft=automake
+# included from Top Level Makefile.am
+# All paths should be given relative to the root
+
+
+noinst_PROGRAMS += examples/ets_test/ets_test
+noinst_HEADERS  += examples/ets_test/ets_test.h
+examples_ets_test_ets_test_SOURCES      = examples/ets_test/ets_test.c
+examples_ets_test_ets_test_LDADD        = src/libwolfkeymgr.la $(LIB_STATIC_ADD)
+examples_ets_test_ets_test_DEPENDENCIES = src/libwolfkeymgr.la

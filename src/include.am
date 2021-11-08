@@ -4,14 +4,14 @@
 
 
 lib_LTLIBRARIES += src/libwolfkeymgr.la
-src_libwolfkeymgr_la_SOURCES  = src/mod_http.c src/mod_etsi.c src/mod_socket.c src/mod_tls.c src/mod_vault.c src/wkm_utils.c
+src_libwolfkeymgr_la_SOURCES  = src/mod_http.c src/mod_ets.c src/mod_socket.c src/mod_tls.c src/mod_vault.c src/wkm_utils.c
 src_libwolfkeymgr_la_CFLAGS   = -DBUILDING_WKM $(AM_CFLAGS)
 src_libwolfkeymgr_la_CPPFLAGS = -DBUILDING_WKM $(AM_CPPFLAGS)
 src_libwolfkeymgr_la_LDFLAGS  = ${AM_LDFLAGS} -no-undefined -version-info ${WOLFKM_LIBRARY_VERSION}
 
 
 bin_PROGRAMS += src/wolfkeymgr
-src_wolfkeymgr_SOURCES      = src/keymanager.c src/sock_mgr.c src/svc_etsi.c
+src_wolfkeymgr_SOURCES      = src/keymanager.c src/sock_mgr.c src/svc_ets.c
 src_wolfkeymgr_CFLAGS       =
 src_wolfkeymgr_LDFLAGS      = -Lsrc
 src_wolfkeymgr_LDADD        = src/libwolfkeymgr.la $(LTLIBEVENT) $(LIB_STATIC_ADD)
@@ -19,9 +19,9 @@ src_wolfkeymgr_DEPENDENCIES = src/libwolfkeymgr.la
 
 noinst_HEADERS  += wolfkeymgr/keymanager.h \
                    wolfkeymgr/sock_mgr.h \
-                   wolfkeymgr/svc_etsi.h
+                   wolfkeymgr/svc_ets.h
 
-nobase_include_HEADERS += wolfkeymgr/mod_etsi.h \
+nobase_include_HEADERS += wolfkeymgr/mod_ets.h \
                           wolfkeymgr/mod_http.h \
                           wolfkeymgr/mod_socket.h \
                           wolfkeymgr/mod_tls.h \

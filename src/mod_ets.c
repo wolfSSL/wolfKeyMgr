@@ -1,4 +1,4 @@
-/* mod_etsi.c
+/* mod_ets.c
  *
  * Copyright (C) 2006-2021 wolfSSL Inc.
  *
@@ -19,21 +19,21 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
-#include "wolfkeymgr/mod_etsi.h"
+#include "wolfkeymgr/mod_ets.h"
 #include <signal.h>
 
-struct EtsiClientCtx {
+struct EtsClientCtx {
     WOLFSSL_CTX*   sslCtx;
     WOLFSSL*       ssl;
     wolfSSL_Mutex  lock;
 };
 
 
-EtsiClientCtx* wolfEtsiClientNew(void)
+EtsClientCtx* wolfEtsClientNew(void)
 {
-    EtsiClientCtx* client = (EtsiClientCtx*)malloc(sizeof(EtsiClientCtx));
+    EtsClientCtx* client = (EtsClientCtx*)malloc(sizeof(EtsClientCtx));
     if (client) {
-        memset(client, 0, sizeof(EtsiClientCtx));
+        memset(client, 0, sizeof(EtsClientCtx));
         wc_InitMutex(&client->lock);
         client->sslCtx = wolfTlsClientNew();
         if (client->sslCtx == NULL) {
@@ -45,7 +45,7 @@ EtsiClientCtx* wolfEtsiClientNew(void)
     return client;
 }
 
-int wolfEtsiClientSetKey(EtsiClientCtx* client, const char* keyFile,
+int wolfEtsClientSetKey(EtsClientCtx* client, const char* keyFile,
     const char* keyPassword, const char* certFile, int fileType)
 {
     int ret;
@@ -58,7 +58,7 @@ int wolfEtsiClientSetKey(EtsiClientCtx* client, const char* keyFile,
     return ret;
 }
 
-int wolfEtsiClientAddCA(EtsiClientCtx* client, const char* caFile)
+int wolfEtsClientAddCA(EtsClientCtx* client, const char* caFile)
 {
     int ret;
     if (client == NULL) {
@@ -71,7 +71,7 @@ int wolfEtsiClientAddCA(EtsiClientCtx* client, const char* caFile)
     return ret;
 }
 
-int wolfEtsiClientConnect(EtsiClientCtx* client, const char* host,
+int wolfEtsClientConnect(EtsClientCtx* client, const char* host,
     word16 port, int timeoutSec)
 {
     int ret;
@@ -83,48 +83,49 @@ int wolfEtsiClientConnect(EtsiClientCtx* client, const char* host,
     wc_LockMutex(&client->lock);
     ret = wolfTlsConnect(client->sslCtx, &client->ssl, host, port, timeoutSec);
     if (ret == 0) {
-        XLOG(WOLFKM_LOG_INFO, "Connected to ETSI service\n");
+        XLOG(WOLFKM_LOG_INFO, "Connected to ETS service\n");
     }
     else {
-        XLOG(WOLFKM_LOG_ERROR, "Failure connecting to ETSI service %d\n", ret);
+        XLOG(WOLFKM_LOG_ERROR, "Failure connecting to ETS service %d\n", ret);
+        ret = WOLFKM_BAD_HOST;
     }
     wc_UnLockMutex(&client->lock);
 
     return ret;
 }
 
-const char* wolfEtsiKeyNamedGroupStr(EtsiKey* key)
+const char* wolfEtsKeyNamedGroupStr(EtsKey* key)
 {
     if (key == NULL)
         return NULL;
     switch (key->type) {
-        case ETSI_KEY_TYPE_SECP160K1:  return "0x000F"; /* 15 */
-        case ETSI_KEY_TYPE_SECP160R1:  return "0x0010"; /* 16 */
-        case ETSI_KEY_TYPE_SECP160R2:  return "0x0011"; /* 17 */
-        case ETSI_KEY_TYPE_SECP192K1:  return "0x0012"; /* 18 */
-        case ETSI_KEY_TYPE_SECP192R1:  return "0x0013"; /* 19 */
-        case ETSI_KEY_TYPE_SECP224K1:  return "0x0014"; /* 20 */
-        case ETSI_KEY_TYPE_SECP224R1:  return "0x0015"; /* 21 */
-        case ETSI_KEY_TYPE_SECP256K1:  return "0x0016"; /* 22 */
-        case ETSI_KEY_TYPE_SECP256R1:  return "0x0017"; /* 23 */
-        case ETSI_KEY_TYPE_SECP384R1:  return "0x0018"; /* 24 */
-        case ETSI_KEY_TYPE_SECP521R1:  return "0x0019"; /* 25 */
-        case ETSI_KEY_TYPE_BRAINPOOLP256R1: return "0x001A"; /* 26 */
-        case ETSI_KEY_TYPE_BRAINPOOLP384R1: return "0x001B"; /* 27 */
-        case ETSI_KEY_TYPE_BRAINPOOLP512R1: return "0x001C"; /* 28 */
-        case ETSI_KEY_TYPE_X25519:     return "0x001D"; /* 29 */
-        case ETSI_KEY_TYPE_X448:       return "0x001E"; /* 30 */
-        case ETSI_KEY_TYPE_FFDHE_2048: return "0x0100"; /* 256 */
-        case ETSI_KEY_TYPE_FFDHE_3072: return "0x0101"; /* 257 */
-        case ETSI_KEY_TYPE_FFDHE_4096: return "0x0102"; /* 258 */
-        case ETSI_KEY_TYPE_FFDHE_6144: return "0x0103"; /* 259 */
-        case ETSI_KEY_TYPE_FFDHE_8192: return "0x0104"; /* 260 */
+        case ETS_KEY_TYPE_SECP160K1:  return "0x000F"; /* 15 */
+        case ETS_KEY_TYPE_SECP160R1:  return "0x0010"; /* 16 */
+        case ETS_KEY_TYPE_SECP160R2:  return "0x0011"; /* 17 */
+        case ETS_KEY_TYPE_SECP192K1:  return "0x0012"; /* 18 */
+        case ETS_KEY_TYPE_SECP192R1:  return "0x0013"; /* 19 */
+        case ETS_KEY_TYPE_SECP224K1:  return "0x0014"; /* 20 */
+        case ETS_KEY_TYPE_SECP224R1:  return "0x0015"; /* 21 */
+        case ETS_KEY_TYPE_SECP256K1:  return "0x0016"; /* 22 */
+        case ETS_KEY_TYPE_SECP256R1:  return "0x0017"; /* 23 */
+        case ETS_KEY_TYPE_SECP384R1:  return "0x0018"; /* 24 */
+        case ETS_KEY_TYPE_SECP521R1:  return "0x0019"; /* 25 */
+        case ETS_KEY_TYPE_BRAINPOOLP256R1: return "0x001A"; /* 26 */
+        case ETS_KEY_TYPE_BRAINPOOLP384R1: return "0x001B"; /* 27 */
+        case ETS_KEY_TYPE_BRAINPOOLP512R1: return "0x001C"; /* 28 */
+        case ETS_KEY_TYPE_X25519:     return "0x001D"; /* 29 */
+        case ETS_KEY_TYPE_X448:       return "0x001E"; /* 30 */
+        case ETS_KEY_TYPE_FFDHE_2048: return "0x0100"; /* 256 */
+        case ETS_KEY_TYPE_FFDHE_3072: return "0x0101"; /* 257 */
+        case ETS_KEY_TYPE_FFDHE_4096: return "0x0102"; /* 258 */
+        case ETS_KEY_TYPE_FFDHE_6144: return "0x0103"; /* 259 */
+        case ETS_KEY_TYPE_FFDHE_8192: return "0x0104"; /* 260 */
         default: break;
     }
     return NULL;
 }
 
-int wolfEtsiClientMakeRequest(EtsiClientType type, const char* fingerprint,
+int wolfEtsClientMakeRequest(EtsClientType type, const char* fingerprint,
     const char* groups, const char* contextstr, byte* request, word32* requestSz)
 {
     int ret;
@@ -135,8 +136,8 @@ int wolfEtsiClientMakeRequest(EtsiClientType type, const char* fingerprint,
     headers[0].type = HTTP_HDR_ACCEPT;
     headers[0].string = "application/pkcs8";
 
-    /* Build HTTP ETSI request */
-    if (type == ETSI_CLIENT_PUSH) {
+    /* Build HTTP ETS request */
+    if (type == ETS_CLIENT_PUSH) {
         /* PUT for distributed push of keys */
         httpType = HTTP_METHOD_PUT;
         snprintf(uri, sizeof(uri), "/enterprise-transport-security/keys");
@@ -182,7 +183,7 @@ int wolfEtsiClientMakeRequest(EtsiClientType type, const char* fingerprint,
     return ret;
 }
 
-static void ParseHttpResponseExpires(HttpRsp* rsp, EtsiKey* key, time_t now)
+static void ParseHttpResponseExpires(HttpRsp* rsp, EtsKey* key, time_t now)
 {
     int i;
 
@@ -211,13 +212,13 @@ static void ParseHttpResponseExpires(HttpRsp* rsp, EtsiKey* key, time_t now)
     }
 }
 
-static int EtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
-    EtsiKeyType keyType, const char* fingerprint, const char* contextStr,
+static int EtsClientGet(EtsClientCtx* client, EtsKey* key,
+    EtsKeyType keyType, const char* fingerprint, const char* contextStr,
     int timeoutSec, HttpRsp* rsp)
 {
     int    ret;
-    byte   request[ETSI_MAX_REQUEST_SZ];
-    word32 requestSz = ETSI_MAX_REQUEST_SZ;
+    byte   request[ETS_MAX_REQUEST_SZ];
+    word32 requestSz = ETS_MAX_REQUEST_SZ;
     int    pos;
     const char* group;
 
@@ -227,11 +228,11 @@ static int EtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
 
     /* build GET request for key */
     key->type = keyType;
-    group = wolfEtsiKeyNamedGroupStr(key);
-    ret = wolfEtsiClientMakeRequest(ETSI_CLIENT_GET, fingerprint, group,
+    group = wolfEtsKeyNamedGroupStr(key);
+    ret = wolfEtsClientMakeRequest(ETS_CLIENT_GET, fingerprint, group,
         contextStr, request, &requestSz);
     if (ret != 0) {
-        XLOG(WOLFKM_LOG_INFO, "EtsiClientMakeRequest failed: %d\n", ret);
+        XLOG(WOLFKM_LOG_INFO, "EtsClientMakeRequest failed: %d\n", ret);
         return ret;
     }
     XLOG(WOLFKM_LOG_DEBUG, "HTTP Sending: %s\n", (char*)request);
@@ -277,7 +278,7 @@ static int EtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
             wolfHttpResponsePrint(rsp);
 
             /* move payload (body) to response (same buffer) */
-            memcpy(key->response, rsp->body, rsp->bodySz);
+            memmove(key->response, rsp->body, rsp->bodySz);
             key->responseSz = rsp->bodySz;
         }
         else {
@@ -287,7 +288,7 @@ static int EtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
 
     if (ret == 0) {
         /* asymmetric key package response */
-        XLOG(WOLFKM_LOG_INFO, "Got ETSI response (%d bytes)\n",
+        XLOG(WOLFKM_LOG_INFO, "Got ETS response (%d bytes)\n",
             key->responseSz);
         ret = key->responseSz; /* return key size */
     }
@@ -295,8 +296,8 @@ static int EtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
     return ret;
 }
 
-int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
-    EtsiKeyType keyType, const char* fingerprint, const char* contextStr,
+int wolfEtsClientGet(EtsClientCtx* client, EtsKey* key,
+    EtsKeyType keyType, const char* fingerprint, const char* contextStr,
     int timeoutSec)
 {
     int    ret;
@@ -316,7 +317,7 @@ int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
         return 0;
     }
 
-    ret = EtsiClientGet(client, key, keyType, fingerprint, contextStr,
+    ret = EtsClientGet(client, key, keyType, fingerprint, contextStr,
         timeoutSec, &rsp);
     if (ret == 0) {
         ParseHttpResponseExpires(&rsp, key, now);
@@ -324,18 +325,18 @@ int wolfEtsiClientGet(EtsiClientCtx* client, EtsiKey* key,
     return ret;
 }
 
-int wolfEtsiClientPush(EtsiClientCtx* client, EtsiKeyType keyType,
+int wolfEtsClientPush(EtsClientCtx* client, EtsKeyType keyType,
     const char* fingerprint, const char* contextStr,
-    EtsiKeyCallbackFunc cb, void* cbCtx)
+    EtsKeyCallbackFunc cb, void* cbCtx)
 {
     int    ret;
-    byte   request[ETSI_MAX_REQUEST_SZ];
-    word32 requestSz = ETSI_MAX_REQUEST_SZ;
+    byte   request[ETS_MAX_REQUEST_SZ];
+    word32 requestSz = ETS_MAX_REQUEST_SZ;
     int    pos;
     HttpRsp rsp;
     const char* group;
     time_t now;
-    EtsiKey key;
+    EtsKey key;
 
     if (client == NULL || cb == NULL) {
         return WOLFKM_BAD_ARGS;
@@ -344,11 +345,11 @@ int wolfEtsiClientPush(EtsiClientCtx* client, EtsiKeyType keyType,
     /* Request PUSH for new keys */
     memset(&key, 0, sizeof(key));
     key.type = keyType;
-    group = wolfEtsiKeyNamedGroupStr(&key);
-    ret = wolfEtsiClientMakeRequest(ETSI_CLIENT_PUSH, fingerprint, group,
+    group = wolfEtsKeyNamedGroupStr(&key);
+    ret = wolfEtsClientMakeRequest(ETS_CLIENT_PUSH, fingerprint, group,
         contextStr, request, &requestSz);
     if (ret != 0) {
-        XLOG(WOLFKM_LOG_INFO, "EtsiClientMakeRequest failed: %d\n", ret);
+        XLOG(WOLFKM_LOG_INFO, "EtsClientMakeRequest failed: %d\n", ret);
         return ret;
     }
 
@@ -380,7 +381,7 @@ int wolfEtsiClientPush(EtsiClientCtx* client, EtsiKeyType keyType,
         }
         if (ret > 0) {
             /* asymmetric key package response */
-            XLOG(WOLFKM_LOG_INFO, "Got ETSI response (%d bytes)\n",
+            XLOG(WOLFKM_LOG_INFO, "Got ETS response (%d bytes)\n",
                 key.responseSz);
 
             /* parse HTTP server response */
@@ -417,17 +418,17 @@ int wolfEtsiClientPush(EtsiClientCtx* client, EtsiKeyType keyType,
     return ret;
 }
 
-int wolfEtsiClientFind(EtsiClientCtx* client, EtsiKey* key,
-    EtsiKeyType keyType, const char* fingerprint, const char* contextStr,
+int wolfEtsClientFind(EtsClientCtx* client, EtsKey* key,
+    EtsKeyType keyType, const char* fingerprint, const char* contextStr,
     int timeoutSec)
 {
     HttpRsp rsp;
     /* fingerprint is previously generated ephemeral public key name */
-    return EtsiClientGet(client, key, keyType, fingerprint, contextStr,
+    return EtsClientGet(client, key, keyType, fingerprint, contextStr,
         timeoutSec, &rsp);
 }
 
-int wolfEtsiKeyGetPtr(EtsiKey* key, byte** response, word32* responseSz)
+int wolfEtsKeyGetPtr(EtsKey* key, byte** response, word32* responseSz)
 {
     if (key == NULL)
         return WOLFKM_BAD_ARGS;
@@ -438,86 +439,86 @@ int wolfEtsiKeyGetPtr(EtsiKey* key, byte** response, word32* responseSz)
     return 0;
 }
 
-EtsiKey* wolfEtsiKeyNew(void)
+EtsKey* wolfEtsKeyNew(void)
 {
-    EtsiKey* key = (EtsiKey*)malloc(sizeof(EtsiKey));
+    EtsKey* key = (EtsKey*)malloc(sizeof(EtsKey));
     if (key) {
-        memset(key, 0, sizeof(EtsiKey));
+        memset(key, 0, sizeof(EtsKey));
         key->isDynamic = 1;
     }
     return key;
 }
 
-int wolfEtsiGetPkType(EtsiKeyType type)
+int wolfEtsGetPkType(EtsKeyType type)
 {
-    if (type >= ETSI_KEY_TYPE_SECP160K1 &&
-        type <= ETSI_KEY_TYPE_BRAINPOOLP512R1) {
+    if (type >= ETS_KEY_TYPE_SECP160K1 &&
+        type <= ETS_KEY_TYPE_BRAINPOOLP512R1) {
         return WC_PK_TYPE_ECDH;
     }
-    if (type >= ETSI_KEY_TYPE_FFDHE_2048 &&
-        type <= ETSI_KEY_TYPE_FFDHE_8192) {
+    if (type >= ETS_KEY_TYPE_FFDHE_2048 &&
+        type <= ETS_KEY_TYPE_FFDHE_8192) {
         return WC_PK_TYPE_DH;
     }
-    if (type == ETSI_KEY_TYPE_X25519) {
+    if (type == ETS_KEY_TYPE_X25519) {
         return WC_PK_TYPE_CURVE25519;
     }
-    if (type == ETSI_KEY_TYPE_X448) {
+    if (type == ETS_KEY_TYPE_X448) {
         return WC_PK_TYPE_CURVE448;
     }
     return WC_PK_TYPE_NONE;
 }
 
-int wolfEtsiKeyGetPkType(EtsiKey* key)
+int wolfEtsKeyGetPkType(EtsKey* key)
 {
     if (key == NULL)
         return WOLFKM_BAD_ARGS;
-    return wolfEtsiGetPkType(key->type);
+    return wolfEtsGetPkType(key->type);
 }
 
-const char* wolfEtsiKeyGetTypeStr(EtsiKeyType type)
+const char* wolfEtsKeyGetTypeStr(EtsKeyType type)
 {
     switch (type) {
-        case ETSI_KEY_TYPE_SECP160K1:
+        case ETS_KEY_TYPE_SECP160K1:
             return "SECP160K1";
-        case ETSI_KEY_TYPE_SECP160R1:
+        case ETS_KEY_TYPE_SECP160R1:
             return "SECP160R1";
-        case ETSI_KEY_TYPE_SECP160R2:
+        case ETS_KEY_TYPE_SECP160R2:
             return "SECP160R2";
-        case ETSI_KEY_TYPE_SECP192K1:
+        case ETS_KEY_TYPE_SECP192K1:
             return "SECP192K1";
-        case ETSI_KEY_TYPE_SECP192R1:
+        case ETS_KEY_TYPE_SECP192R1:
             return "SECP192R1";
-        case ETSI_KEY_TYPE_SECP224K1:
+        case ETS_KEY_TYPE_SECP224K1:
             return "SECP224K1";
-        case ETSI_KEY_TYPE_SECP224R1:
+        case ETS_KEY_TYPE_SECP224R1:
             return "SECP224R1";
-        case ETSI_KEY_TYPE_SECP256K1:
+        case ETS_KEY_TYPE_SECP256K1:
             return "SECP256K1";
-        case ETSI_KEY_TYPE_SECP256R1:
+        case ETS_KEY_TYPE_SECP256R1:
             return "SECP256R1";
-        case ETSI_KEY_TYPE_SECP384R1:
+        case ETS_KEY_TYPE_SECP384R1:
             return "SECP384R1";
-        case ETSI_KEY_TYPE_SECP521R1:
+        case ETS_KEY_TYPE_SECP521R1:
             return "SECP521R1";
-        case ETSI_KEY_TYPE_BRAINPOOLP256R1:
+        case ETS_KEY_TYPE_BRAINPOOLP256R1:
             return "BRAINPOOLP256R1";
-        case ETSI_KEY_TYPE_BRAINPOOLP384R1:
+        case ETS_KEY_TYPE_BRAINPOOLP384R1:
             return "BRAINPOOLP384R1";
-        case ETSI_KEY_TYPE_BRAINPOOLP512R1:
+        case ETS_KEY_TYPE_BRAINPOOLP512R1:
             return "BRAINPOOLP512R1";
-        case ETSI_KEY_TYPE_X25519:
+        case ETS_KEY_TYPE_X25519:
             return "X25519";
-        case ETSI_KEY_TYPE_X448:
+        case ETS_KEY_TYPE_X448:
             return "X448";
-        case ETSI_KEY_TYPE_FFDHE_2048:
+        case ETS_KEY_TYPE_FFDHE_2048:
             return "FFDHE_2048";
-        case ETSI_KEY_TYPE_FFDHE_3072:
+        case ETS_KEY_TYPE_FFDHE_3072:
             return "FFDHE_3072";
-        case ETSI_KEY_TYPE_FFDHE_4096:
+        case ETS_KEY_TYPE_FFDHE_4096:
             return "FFDHE_4096";
-        case ETSI_KEY_TYPE_FFDHE_6144:
+        case ETS_KEY_TYPE_FFDHE_6144:
             return "FFDHE_6144";
-        case ETSI_KEY_TYPE_FFDHE_8192:
+        case ETS_KEY_TYPE_FFDHE_8192:
             return "FFDHE_8192";
         default:
             break;
@@ -525,7 +526,7 @@ const char* wolfEtsiKeyGetTypeStr(EtsiKeyType type)
     return NULL;
 }
 
-int wolfEtsiKeyLoadCTX(EtsiKey* key, WOLFSSL_CTX* ctx)
+int wolfEtsKeyLoadCTX(EtsKey* key, WOLFSSL_CTX* ctx)
 {
     int ret;
 #ifdef WOLFSSL_STATIC_EPHEMERAL
@@ -537,7 +538,7 @@ int wolfEtsiKeyLoadCTX(EtsiKey* key, WOLFSSL_CTX* ctx)
 
 #ifdef WOLFSSL_STATIC_EPHEMERAL
     /* determine key algo */
-    keyAlgo = wolfEtsiKeyGetPkType(key);
+    keyAlgo = wolfEtsKeyGetPkType(key);
 
     ret = wolfSSL_CTX_set_ephemeral_key(ctx, keyAlgo,
         (char*)key->response, key->responseSz, WOLFSSL_FILETYPE_ASN1);
@@ -547,7 +548,7 @@ int wolfEtsiKeyLoadCTX(EtsiKey* key, WOLFSSL_CTX* ctx)
     return ret;
 }
 
-int wolfEtsiKeyLoadSSL(EtsiKey* key, WOLFSSL* ssl)
+int wolfEtsKeyLoadSSL(EtsKey* key, WOLFSSL* ssl)
 {
     int ret;
 #ifdef WOLFSSL_STATIC_EPHEMERAL
@@ -559,7 +560,7 @@ int wolfEtsiKeyLoadSSL(EtsiKey* key, WOLFSSL* ssl)
 
 #ifdef WOLFSSL_STATIC_EPHEMERAL
     /* determine key algo */
-    keyAlgo = wolfEtsiKeyGetPkType(key);
+    keyAlgo = wolfEtsKeyGetPkType(key);
 
     ret = wolfSSL_set_ephemeral_key(ssl, keyAlgo,
         (char*)key->response, key->responseSz, WOLFSSL_FILETYPE_ASN1);
@@ -574,37 +575,37 @@ int wolfEtsiKeyLoadSSL(EtsiKey* key, WOLFSSL* ssl)
 }
 
 #ifdef HAVE_ECC
-static int NamedGroupToCurveInfo(EtsiKeyType keyType, int* curveId, int* keySize)
+static int NamedGroupToCurveInfo(EtsKeyType keyType, int* curveId, int* keySize)
 {
     int ret = 0;
     switch (keyType) {
-        case ETSI_KEY_TYPE_SECP160K1:
+        case ETS_KEY_TYPE_SECP160K1:
             *curveId = ECC_SECP160K1; *keySize = 20; break;
-        case ETSI_KEY_TYPE_SECP160R1:
+        case ETS_KEY_TYPE_SECP160R1:
             *curveId = ECC_SECP160R1; *keySize = 20; break;
-        case ETSI_KEY_TYPE_SECP160R2:
+        case ETS_KEY_TYPE_SECP160R2:
             *curveId = ECC_SECP160R2; *keySize = 20; break;
-        case ETSI_KEY_TYPE_SECP192K1:
+        case ETS_KEY_TYPE_SECP192K1:
             *curveId = ECC_SECP192K1; *keySize = 24; break;
-        case ETSI_KEY_TYPE_SECP192R1:
+        case ETS_KEY_TYPE_SECP192R1:
             *curveId = ECC_SECP192R1; *keySize = 24; break;
-        case ETSI_KEY_TYPE_SECP224K1:
+        case ETS_KEY_TYPE_SECP224K1:
             *curveId = ECC_SECP224K1; *keySize = 28; break;
-        case ETSI_KEY_TYPE_SECP224R1:
+        case ETS_KEY_TYPE_SECP224R1:
             *curveId = ECC_SECP224R1; *keySize = 28; break;
-        case ETSI_KEY_TYPE_SECP256K1:
+        case ETS_KEY_TYPE_SECP256K1:
             *curveId = ECC_SECP256K1; *keySize = 32; break;
-        case ETSI_KEY_TYPE_SECP256R1:
+        case ETS_KEY_TYPE_SECP256R1:
             *curveId = ECC_SECP256R1; *keySize = 32; break;
-        case ETSI_KEY_TYPE_SECP384R1:
+        case ETS_KEY_TYPE_SECP384R1:
             *curveId = ECC_SECP384R1; *keySize = 48; break;
-        case ETSI_KEY_TYPE_SECP521R1:
+        case ETS_KEY_TYPE_SECP521R1:
             *curveId = ECC_SECP521R1; *keySize = 66; break;
-        case ETSI_KEY_TYPE_BRAINPOOLP256R1:
+        case ETS_KEY_TYPE_BRAINPOOLP256R1:
             *curveId = ECC_BRAINPOOLP256R1; *keySize = 32; break;
-        case ETSI_KEY_TYPE_BRAINPOOLP384R1:
+        case ETS_KEY_TYPE_BRAINPOOLP384R1:
             *curveId = ECC_BRAINPOOLP384R1; *keySize = 48; break;
-        case ETSI_KEY_TYPE_BRAINPOOLP512R1:
+        case ETS_KEY_TYPE_BRAINPOOLP512R1:
             *curveId = ECC_BRAINPOOLP512R1; *keySize = 64; break;
         default:
             ret = WOLFKM_BAD_ARGS;
@@ -615,41 +616,50 @@ static int NamedGroupToCurveInfo(EtsiKeyType keyType, int* curveId, int* keySize
 #endif
 
 #if !defined(NO_DH) && defined(WOLFSSL_DH_EXTRA)
-static int NamedGroupToDhParams(EtsiKeyType keyType,
+static int NamedGroupToDhParams(EtsKeyType keyType,
     const DhParams** pParams, word32* pPrivKeySz, word32* pPubKeySz)
 {
     int ret = 0;
     const DhParams* params = NULL;
     word32 privKeySz = 0;
+    word32 pubKeySz = 0;
+    #ifdef HAVE_PUBLIC_FFDHE
     switch (keyType) {
     #ifdef HAVE_FFDHE_2048
-        case ETSI_KEY_TYPE_FFDHE_2048:
+        case ETS_KEY_TYPE_FFDHE_2048:
             params = wc_Dh_ffdhe2048_Get(); privKeySz = 29; break;
     #endif
     #ifdef HAVE_FFDHE_3072
-        case ETSI_KEY_TYPE_FFDHE_3072:
+        case ETS_KEY_TYPE_FFDHE_3072:
             params = wc_Dh_ffdhe3072_Get(); privKeySz = 34; break;
     #endif
     #ifdef HAVE_FFDHE_4096
-        case ETSI_KEY_TYPE_FFDHE_4096:
+        case ETS_KEY_TYPE_FFDHE_4096:
             params = wc_Dh_ffdhe4096_Get(); privKeySz = 39; break;
     #endif
     #ifdef HAVE_FFDHE_6144
-        case ETSI_KEY_TYPE_FFDHE_6144:
+        case ETS_KEY_TYPE_FFDHE_6144:
             params = wc_Dh_ffdhe6144_Get(); privKeySz = 46; break;
     #endif
     #ifdef HAVE_FFDHE_8192
-        case ETSI_KEY_TYPE_FFDHE_8192:
+        case ETS_KEY_TYPE_FFDHE_8192:
             params = wc_Dh_ffdhe8192_Get(); privKeySz = 52; break;
     #endif
         default:
             ret = WOLFKM_NOT_COMPILED_IN;
             break;
     }
+    if (params)
+        pubKeySz = params->p_len;
+    #else
+        privKeySz = wc_DhGetNamedKeyMinSize((int)keyType);
+        ret = wc_DhGetNamedKeyParamSize((int)keyType, &pubKeySz, NULL, NULL);
+    #endif
+    
     if (pParams)
         *pParams = params;
-    if (pPubKeySz && params)
-        *pPubKeySz = params->p_len;
+    if (pPubKeySz)
+        *pPubKeySz = pubKeySz;
     if (pPrivKeySz)
         *pPrivKeySz = privKeySz;
     return ret;
@@ -657,7 +667,7 @@ static int NamedGroupToDhParams(EtsiKeyType keyType,
 #endif
 
 
-static int wolfKeyCalcFingerprint(EtsiKeyType keyType, const byte* pub, word32 pubSz,
+static int wolfKeyCalcFingerprint(EtsKeyType keyType, const byte* pub, word32 pubSz,
     byte* fp, word32* fpSz)
 {
     int ret = 0;
@@ -686,7 +696,7 @@ static int wolfKeyCalcFingerprint(EtsiKeyType keyType, const byte* pub, word32 p
 }
 
 #ifdef HAVE_ECC
-static int GenNewKeyEcc(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
+static int GenNewKeyEcc(EtsKey* key, EtsKeyType keyType, WC_RNG* rng)
 {
     int ret;
     int curveId = ECC_CURVE_DEF, keySize = 32;
@@ -741,7 +751,7 @@ static int GenNewKeyEcc(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
 #endif
 
 #ifdef HAVE_CURVE25519
-static int GenNewKeyCurve25519(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
+static int GenNewKeyCurve25519(EtsKey* key, EtsKeyType keyType, WC_RNG* rng)
 {
     int ret;
     curve25519_key curveKey;
@@ -786,7 +796,7 @@ static int GenNewKeyCurve25519(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
 #endif /* HAVE_CURVE25519 */
 
 #ifdef HAVE_CURVE448
-static int GenNewKeyCurve448(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
+static int GenNewKeyCurve448(EtsKey* key, EtsKeyType keyType, WC_RNG* rng)
 {
     int ret;
     curve448_key curveKey;
@@ -831,12 +841,12 @@ static int GenNewKeyCurve448(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
 #endif /* HAVE_CURVE448 */
 
 #if !defined(NO_DH) && defined(WOLFSSL_DH_EXTRA)
-static int GenNewKeyDh(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
+static int GenNewKeyDh(EtsKey* key, EtsKeyType keyType, WC_RNG* rng)
 {
     int ret;
     DhKey dh;
     const DhParams* params = NULL;
-    word32 privKeySz = 0, pubKeySz = 0;
+    word32 privKeySz = 0, pubKeySz = 0, p_len;
     byte privKey[MAX_DH_PRIV_SZ];
     byte pubKey[MAX_DH_PUB_SZ];
 
@@ -844,6 +854,7 @@ static int GenNewKeyDh(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
     if (ret != 0) {
         return ret;
     }
+    p_len = pubKeySz;
 
     ret = wc_InitDhKey(&dh);
     if (ret != 0) {
@@ -852,9 +863,13 @@ static int GenNewKeyDh(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
     }
 
     /* Set key params */
+#ifdef HAVE_PUBLIC_FFDHE
     ret = wc_DhSetKey(&dh,
         params->p, params->p_len,
         params->g, params->g_len);
+#else
+    ret = wc_DhSetNamedKey(&dh, (int)keyType);
+#endif
     if (ret == 0) {
         /* Generate a new key pair */
         ret = wc_DhGenerateKeyPair(&dh, rng,
@@ -862,10 +877,10 @@ static int GenNewKeyDh(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
             pubKey, &pubKeySz);
     }
     if (ret == 0) {
-        if (params->p_len != pubKeySz) {
+        if (p_len != pubKeySz) {
             /* Zero pad the front of the public key to match prime "p" size */
-            memmove(pubKey + params->p_len - pubKeySz, pubKey, pubKeySz);
-            memset(pubKey, 0, params->p_len - pubKeySz);
+            memmove(pubKey + p_len - pubKeySz, pubKey, pubKeySz);
+            memset(pubKey, 0, p_len - pubKeySz);
         }
 
         /* load public and private key info into DkKey */
@@ -898,7 +913,7 @@ static int GenNewKeyDh(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
 }
 #endif /* !NO_DH && WOLFSSL_DH_EXTRA */
 
-int wolfEtsiKeyGen(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
+int wolfEtsKeyGen(EtsKey* key, EtsKeyType keyType, WC_RNG* rng)
 {
     int ret = WOLFKM_NOT_COMPILED_IN;
 
@@ -906,24 +921,24 @@ int wolfEtsiKeyGen(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
         return WOLFKM_BAD_ARGS;
 
 #ifdef HAVE_ECC
-    if (keyType >= ETSI_KEY_TYPE_SECP160K1 &&
-        keyType <= ETSI_KEY_TYPE_BRAINPOOLP512R1) {
+    if (keyType >= ETS_KEY_TYPE_SECP160K1 &&
+        keyType <= ETS_KEY_TYPE_BRAINPOOLP512R1) {
         ret = GenNewKeyEcc(key, keyType, rng);
     }
 #endif
 #if !defined(NO_DH) && defined(WOLFSSL_DH_EXTRA)
-    if (keyType >= ETSI_KEY_TYPE_FFDHE_2048 &&
-        keyType <= ETSI_KEY_TYPE_FFDHE_8192) {
+    if (keyType >= ETS_KEY_TYPE_FFDHE_2048 &&
+        keyType <= ETS_KEY_TYPE_FFDHE_8192) {
         ret = GenNewKeyDh(key, keyType, rng);
     }
 #endif
 #ifdef HAVE_CURVE25519
-    if (keyType == ETSI_KEY_TYPE_X25519) {
+    if (keyType == ETS_KEY_TYPE_X25519) {
         ret = GenNewKeyCurve25519(key, keyType, rng);
     }
 #endif
 #ifdef HAVE_CURVE448
-    if (keyType == ETSI_KEY_TYPE_X448) {
+    if (keyType == ETS_KEY_TYPE_X448) {
         ret = GenNewKeyCurve448(key, keyType, rng);
     }
 #endif
@@ -937,11 +952,11 @@ int wolfEtsiKeyGen(EtsiKey* key, EtsiKeyType keyType, WC_RNG* rng)
 }
 
 /* Public key format is same as over the wire via TLS */
-int wolfEtsiCalcTlsFingerprint(EtsiKeyType keyType,
+int wolfEtsCalcTlsFingerprint(EtsKeyType keyType,
     const byte* pub, word32 pubSz, char* fpStr, word32* fpStrSz)
 {
     int ret = WOLFKM_NOT_COMPILED_IN;
-    byte fp[ETSI_MAX_FINGERPRINT];
+    byte fp[ETS_MAX_FINGERPRINT];
     word32 fpSz = (word32)sizeof(fp);
 
     if (pub == NULL || pubSz == 0 || fpStr == NULL || fpStrSz == NULL)
@@ -950,8 +965,8 @@ int wolfEtsiCalcTlsFingerprint(EtsiKeyType keyType,
     memset(fp, 0, sizeof(fp));
 
 #ifdef HAVE_ECC
-    if (keyType >= ETSI_KEY_TYPE_SECP160K1 &&
-        keyType <= ETSI_KEY_TYPE_BRAINPOOLP512R1)
+    if (keyType >= ETS_KEY_TYPE_SECP160K1 &&
+        keyType <= ETS_KEY_TYPE_BRAINPOOLP512R1)
     {
         /* For ECC it is x963 - 1 byte (point type), pub x, pub y */
         int curveId = ECC_CURVE_DEF, keySize = 32;
@@ -985,8 +1000,8 @@ int wolfEtsiCalcTlsFingerprint(EtsiKeyType keyType,
     }
 #endif
 #if !defined(NO_DH) && defined(WOLFSSL_DH_EXTRA)
-    if (keyType >= ETSI_KEY_TYPE_FFDHE_2048 &&
-        keyType <= ETSI_KEY_TYPE_FFDHE_8192)
+    if (keyType >= ETS_KEY_TYPE_FFDHE_2048 &&
+        keyType <= ETS_KEY_TYPE_FFDHE_8192)
     {
         /* For DH it is the DH public key as unsigned bin */
         word32 pubKeySz = 0;
@@ -997,13 +1012,13 @@ int wolfEtsiCalcTlsFingerprint(EtsiKeyType keyType,
     }
 #endif
 #ifdef HAVE_CURVE25519
-    if (keyType == ETSI_KEY_TYPE_X25519) {
+    if (keyType == ETS_KEY_TYPE_X25519) {
         /* For Curve25519 is 32 bytes as unsigned bin */
         ret = wolfKeyCalcFingerprint(keyType, pub, pubSz, fp, &fpSz);
     }
 #endif
 #ifdef HAVE_CURVE448
-    if (keyType == ETSI_KEY_TYPE_X448) {
+    if (keyType == ETS_KEY_TYPE_X448) {
         /* For Curve448 is 56 bytes as unsigned bin */
         ret = wolfKeyCalcFingerprint(keyType, pub, pubSz, fp, &fpSz);
     }
@@ -1020,7 +1035,7 @@ int wolfEtsiCalcTlsFingerprint(EtsiKeyType keyType,
     return ret;
 }
 
-int wolfEtsiKeyComputeName(EtsiKey* key)
+int wolfEtsKeyComputeName(EtsKey* key)
 {
     int ret = WOLFKM_NOT_COMPILED_IN;
     int keyAlgo;
@@ -1040,7 +1055,7 @@ int wolfEtsiKeyComputeName(EtsiKey* key)
     fpSz = (int)sizeof(key->fingerprint);
     memset(fp, 0, fpSz);
 
-    keyAlgo = wolfEtsiKeyGetPkType(key);
+    keyAlgo = wolfEtsKeyGetPkType(key);
 #ifdef HAVE_ECC
     if (keyAlgo == WC_PK_TYPE_ECDH) {
         ecc_key ecKey;
@@ -1143,25 +1158,25 @@ int wolfEtsiKeyComputeName(EtsiKey* key)
     return ret;
 }
 
-void wolfEtsiKeyPrint(EtsiKey* key)
+void wolfEtsKeyPrint(EtsKey* key)
 {
     int ret;
     const char* keyAlgoStr;
-    char pubName[ETSI_MAX_FINGERPRINT_STR];
+    char pubName[ETS_MAX_FINGERPRINT_STR];
     int pubSz = (int)sizeof(pubName);
 
     if (key == NULL) {
         return;
     }
 
-    keyAlgoStr = wolfEtsiKeyGetTypeStr(key->type);
+    keyAlgoStr = wolfEtsKeyGetTypeStr(key->type);
     if (keyAlgoStr == NULL) {
         XLOG(WOLFKM_LOG_INFO, "Unknown key type!\n");
         return;
     }
 
     /* make sure public name is calculated */
-    ret = wolfEtsiKeyComputeName(key);
+    ret = wolfEtsKeyComputeName(key);
     if (ret != 0) {
         XLOG(WOLFKM_LOG_ERROR, "Error %d computing key name\n", ret);
     }
@@ -1174,7 +1189,7 @@ void wolfEtsiKeyPrint(EtsiKey* key)
     (void)pubSz;
 }
 
-void wolfEtsiKeyFree(EtsiKey* key)
+void wolfEtsKeyFree(EtsKey* key)
 {
     if (key) {
         if (key->isDynamic) {
@@ -1183,7 +1198,7 @@ void wolfEtsiKeyFree(EtsiKey* key)
     }
 }
 
-int wolfEtsiClientClose(EtsiClientCtx* client)
+int wolfEtsClientClose(EtsClientCtx* client)
 {
     int ret = 0;
     if (client && client->ssl) {
@@ -1196,7 +1211,7 @@ int wolfEtsiClientClose(EtsiClientCtx* client)
     return ret;
 }
 
-void wolfEtsiClientFree(EtsiClientCtx* client)
+void wolfEtsClientFree(EtsClientCtx* client)
 {
     if (client) {
         wc_LockMutex(&client->lock);
@@ -1214,7 +1229,7 @@ void wolfEtsiClientFree(EtsiClientCtx* client)
     }
 }
 
-int wolfEtsiClientInit(void)
+int wolfEtsClientInit(void)
 {
     /* Ignore SIGPIPE */
     wolfSigIgnore(SIGPIPE);
@@ -1225,7 +1240,7 @@ int wolfEtsiClientInit(void)
     return wolfSSL_Init();
 }
 
-void wolfEtsiClientCleanup(void)
+void wolfEtsClientCleanup(void)
 {
     wolfSSL_Cleanup();
 }

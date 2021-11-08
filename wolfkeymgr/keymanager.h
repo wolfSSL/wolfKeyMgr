@@ -31,9 +31,9 @@
 #include "wolfkeymgr/wkm_types.h"
 #include "wolfkeymgr/wkm_utils.h"
 #include "wolfkeymgr/mod_http.h"
-#include "wolfkeymgr/mod_etsi.h"
+#include "wolfkeymgr/mod_ets.h"
 #include "wolfkeymgr/sock_mgr.h"
-#include "wolfkeymgr/svc_etsi.h"
+#include "wolfkeymgr/svc_ets.h"
 
 
 /* wolfssl headers */
@@ -51,23 +51,23 @@
 #ifndef WOLFKM_DEFAULT_PID
 #define WOLFKM_DEFAULT_PID          "./wolfkeymgr.pid"
 #endif
-#ifndef WOLFKM_ETSISVC_PORT
-#define WOLFKM_ETSISVC_PORT         "8119"
+#ifndef WOLFKM_ETSSVC_PORT
+#define WOLFKM_ETSSVC_PORT          "8119"
 #endif
-#ifndef WOLFKM_ETSISVC_KEY_PASSWORD
-#define WOLFKM_ETSISVC_KEY_PASSWORD "wolfssl"
+#ifndef WOLFKM_ETSSVC_KEY_PASSWORD
+#define WOLFKM_ETSSVC_KEY_PASSWORD  "wolfssl"
 #endif
-#ifndef WOLFKM_ETSISVC_CA
-#define WOLFKM_ETSISVC_CA           "./certs/ca-cert.pem"
+#ifndef WOLFKM_ETSSVC_CA
+#define WOLFKM_ETSSVC_CA            "./certs/ca-cert.pem"
 #endif
-#ifndef WOLFKM_ETSISVC_KEY
-#define WOLFKM_ETSISVC_KEY          "./certs/server-rsa-key.pem"
+#ifndef WOLFKM_ETSSVC_KEY
+#define WOLFKM_ETSSVC_KEY           "./certs/server-rsa-key.pem"
 #endif
-#ifndef WOLFKM_ETSISVC_CERT
-#define WOLFKM_ETSISVC_CERT         "./certs/server-rsa-cert.pem"
+#ifndef WOLFKM_ETSSVC_CERT
+#define WOLFKM_ETSSVC_CERT          "./certs/server-rsa-cert.pem"
 #endif
-#ifndef WOLFKM_ETSISVC_VAULT
-#define WOLFKM_ETSISVC_VAULT        "./wolfkeymgr.vault"
+#ifndef WOLFKM_ETSSVC_VAULT
+#define WOLFKM_ETSSVC_VAULT         "./wolfkeymgr.vault"
 #endif
 
 #ifndef WOLFKM_DEFAULT_FILES
@@ -89,16 +89,16 @@
 #define WOLFKM_BACKOFF_TIME         10000     /* in microseconds */
 #endif
 
-/* Determine default ETSI key type */
-#ifndef WOLFKM_ETSISVC_DEF_KEY_TYPE
+/* Determine default ETS key type */
+#ifndef WOLFKM_ETSSVC_DEF_KEY_TYPE
     #ifdef HAVE_ECC
-        #define WOLFKM_ETSISVC_DEF_KEY_TYPE  ETSI_KEY_TYPE_SECP256R1
+        #define WOLFKM_ETSSVC_DEF_KEY_TYPE  ETS_KEY_TYPE_SECP256R1
     #elif !defined(NO_DH) && defined(WOLFSSL_DH_EXTRA)
-        #define WOLFKM_ETSISVC_DEF_KEY_TYPE  ETSI_KEY_TYPE_FFDHE_2048
+        #define WOLFKM_ETSSVC_DEF_KEY_TYPE  ETS_KEY_TYPE_FFDHE_2048
     #elif defined(HAVE_CURVE25519)
-        #define WOLFKM_ETSISVC_DEF_KEY_TYPE  ETSI_KEY_TYPE_X25519
+        #define WOLFKM_ETSSVC_DEF_KEY_TYPE  ETS_KEY_TYPE_X25519
     #elif defined(HAVE_CURVE448)
-        #define WOLFKM_ETSISVC_DEF_KEY_TYPE  ETSI_KEY_TYPE_X448
+        #define WOLFKM_ETSSVC_DEF_KEY_TYPE  ETS_KEY_TYPE_X448
     #endif
 #endif
 

@@ -19,9 +19,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
-/* Support for ETSI Key Manager Middle-box Decryption */
+/* Support for ETS Key Manager Middle-box Decryption */
 
-#include "wolfkeymgr/mod_etsi.h"
+#include "wolfkeymgr/mod_ets.h"
 #include "examples/middlebox/decrypt.h"
 #include "examples/test_config.h"
 
@@ -48,6 +48,7 @@
     #include <netinet/in.h>
 #endif
 
+#define DEFAULT_SERVER_ADDR_FILTER "127.0.0.1"
 
 typedef unsigned char byte;
 
@@ -70,19 +71,22 @@ static int myKeyCb(void* vSniffer, int namedGroup,
 {
     int ret;
     int keyType;
-    EtsiKey* key = NULL;
+    EtsKey* key = NULL;
 #ifdef HAVE_ECC
-    static EtsiKey keyEcc;
+    static EtsKey keyEcc;
 #endif
 #ifndef NO_DH
-    static EtsiKey keyDh;
+    static EtsKey keyDh;
 #endif
 #ifdef HAVE_CURVE25519
-    static EtsiKey keyX25519;
+    static EtsKey keyX25519;
+#endif
+#ifdef HAVE_CURVE448
+    static EtsKey keyX448;
 #endif
 
     /* lookup based on key type */
-    keyType = wolfEtsiGetPkType(namedGroup);
+    keyType = wolfEtsGetPkType(namedGroup);
     switch (keyType) {
         case WC_PK_TYPE_ECDH:
         #ifdef HAVE_ECC
@@ -100,7 +104,10 @@ static int myKeyCb(void* vSniffer, int namedGroup,
         #endif
             break;
         case WC_PK_TYPE_CURVE448:
-            /* curve448 not yet supported in sniffer */
+        #ifdef HAVE_CURVE448
+            key = &keyX448;
+        #endif
+            break;
         default:
             /* not supported */
             key = NULL;
@@ -110,11 +117,11 @@ static int myKeyCb(void* vSniffer, int namedGroup,
         return 0; /* return, but do not fail */
     }
 
-    ret = etsi_client_find(NULL, key, namedGroup, srvPub, srvPubSz);
+    ret = ets_client_find(NULL, key, namedGroup, srvPub, srvPubSz);
     if (ret >= 0) {
         byte* keyBuf = NULL;
         word32 keySz = 0;
-        wolfEtsiKeyGetPtr(key, &keyBuf, &keySz);
+        wolfEtsKeyGetPtr(key, &keyBuf, &keySz);
 
         if (privKey->length <= keySz) {
             memcpy(privKey->buffer, keyBuf, keySz);
@@ -232,14 +239,14 @@ typedef struct {
     int port;
 } LoadKeyInfo_t;
 
-static int etsi_key_cb(EtsiKey* key, void* cbCtx)
+static int ets_key_cb(EtsKey* key, void* cbCtx)
 {
     int ret;
     byte* keyBuf = NULL;
     word32 keySz = 0;
     LoadKeyInfo_t* info = (LoadKeyInfo_t*)cbCtx;
 
-    wolfEtsiKeyGetPtr(key, &keyBuf, &keySz);
+    wolfEtsKeyGetPtr(key, &keyBuf, &keySz);
 #ifdef HAVE_SNI
     ret = ssl_SetNamedEphemeralKeyBuffer(info->name, info->server, info->port,
         (char*)keyBuf, keySz, FILETYPE_DER, info->passwd, info->err);
@@ -251,7 +258,7 @@ static int etsi_key_cb(EtsiKey* key, void* cbCtx)
     if (ret != 0) {
         /* log error, but do not fail */
         fprintf(stderr, "Error loading private key %s: ret %d\n",
-            wolfEtsiKeyGetTypeStr(key->type), ret);
+            wolfEtsKeyGetTypeStr(key->type), ret);
         ret = 0; /* this is okay */
     }
     return ret;
@@ -279,9 +286,9 @@ static int load_key(const char* name, const char* server, int port,
             info.passwd = passwd;
             info.err = err;
             /* setup connection */
-            ret = etsi_client_get_all(keyFile, etsi_key_cb, &info);
+            ret = ets_client_get_all(keyFile, ets_key_cb, &info);
             if (ret < 0) {
-                fprintf(stderr, "Error connecting to ETSI server: %s\n", keyFile);
+                fprintf(stderr, "Error connecting to ETS server: %s\n", keyFile);
             }
         }
         else {
@@ -326,6 +333,22 @@ static void TrimNewLine(char* str)
         str[strSz-1] = '\0';
 }
 
+static void Usage(void)
+{
+    printf("%s %s\n",  "decrypt", PACKAGE_VERSION);
+    printf( "usage: ./decrypt or ./decrypt pcapFile keyServerURL"
+                " [server] [port] [password]\n");
+    printf("-?           Help, print this usage\n");
+    printf("pcapFile     A previously saved pcap file\n");
+    printf("keyServerURL Key Manager URL or private key as PEM (default %s)\n",
+        ETS_TEST_URL);
+    printf("server       The server’s IP address (v4 or v6) (default %s)\n",
+        DEFAULT_SERVER_ADDR_FILTER);
+    printf("port         The server port to sniff (default %d)\n",
+        HTTPS_TEST_PORT);
+    printf("password     Private Key Password if required\n");
+}
+
 int middlebox_decrypt_test(int argc, char** argv)
 {
     int          ret = 0;
@@ -336,7 +359,7 @@ int middlebox_decrypt_test(int argc, char** argv)
     int          frame = ETHER_IF_FRAME_LEN;
     char         err[PCAP_ERRBUF_SIZE];
     char         filter[32];
-    const char  *keyFilesSrc = "https://" ETSI_TEST_HOST ":" ETSI_TEST_PORT_STR;
+    const char  *keyFilesSrc = ETS_TEST_URL;
     char         keyFilesBuf[MAX_FILENAME_SZ];
     char         keyFilesUser[MAX_FILENAME_SZ];
     const char  *server = NULL;
@@ -347,12 +370,22 @@ int middlebox_decrypt_test(int argc, char** argv)
 
     signal(SIGINT, sig_handler);
 
+    if (argc == 2 && 
+           (XSTRNCMP(argv[1], "-?", 2) == 0 ||
+            XSTRNCMP(argv[1], "-h", 2) == 0 ||
+            XSTRNCMP(argv[1], "--help", 6) == 0))
+    {
+        /* show usage */
+        Usage();
+        exit(EX_USAGE);
+    }
+
 #ifndef _WIN32
     ssl_InitSniffer();   /* dll load on Windows */
 #endif
 #ifdef DEBUG_WOLFSSL
     /* log setup */
-    wolfSSL_Debugging_ON();
+    /* wolfSSL_Debugging_ON(); */
     wolfKeyMgr_SetLogFile(NULL, 0, WOLFKM_LOG_DEBUG);
 #endif
     ssl_Trace("./tracefile.txt", err);
@@ -465,7 +498,7 @@ int middlebox_decrypt_test(int argc, char** argv)
             fprintf(stderr, "pcap_setfilter failed %s\n", pcap_geterr(gPcap));
         }
 
-        /* specify the key file or URL for ETSI key manager */
+        /* specify the key file or URL for ETS key manager */
         printf("Enter the server key [default: %s]: ", keyFilesSrc);
         memset(keyFilesBuf, 0, sizeof(keyFilesBuf));
         memset(keyFilesUser, 0, sizeof(keyFilesUser));
@@ -524,7 +557,7 @@ int middlebox_decrypt_test(int argc, char** argv)
 
             /* defaults for server and port */
             port = portDef;
-            server = "127.0.0.1";
+            server = DEFAULT_SERVER_ADDR_FILTER;
 
             if (argc >= 3)
                 keyFilesSrc = argv[2];
@@ -553,12 +586,6 @@ int middlebox_decrypt_test(int argc, char** argv)
                 exit(EXIT_FAILURE);
             }
         }
-    }
-    else {
-        /* usage error */
-        printf( "usage: ./decrypt or ./decrypt dumpFile keyServerURL"
-                " [server] [port] [password]\n");
-        exit(EXIT_FAILURE);
     }
 
     if (ret != 0)

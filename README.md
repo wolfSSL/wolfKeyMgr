@@ -1,6 +1,6 @@
-# wolf Key Manager
+# wolf Key Manager for Enterprise Transport Security (ETS)
 
-This is a secure service for Key management based on ETSI Enterprise Transport Security specification. Provides middle-box decryption of TLS traffic.
+This is a secure key management service for providing middle-box decryption of TLS traffic.
 
 The library includes examples to demonstrate full passive decryption of an HTTPS server. We also have a demo package for Apache httpd available by request.
 
@@ -23,11 +23,11 @@ Based on:
 
 * keymanager.c: The main entry point
 * sock_mgr.c: The libevent socket manager
-* svc_[]: Services exposed (ETSI)
-* mod_[]: Modules for support (HTTP, TLS, Socket, ETSI and Vault)
+* svc_[]: Services exposed (ETS)
+* mod_[]: Modules for support (HTTP, TLS, Socket, ETS and Vault)
 * wkm_[]: Generic wolf / KeyManager functions
 
-## ETSI Design
+## ETS Design
 
 Server Side
 1) KeyGen (Gen Key)
@@ -36,7 +36,7 @@ Server Side
 4) Key expiration and notification of new key to peers
 
 Client side
-1) Encoding ETSI HTTP request
+1) Encoding ETS HTTP request
 2) Parsing HTTP response
 3) Unbundling asymmetric key
 
@@ -106,7 +106,7 @@ installed, then proceed to the next step.
 
 ## Examples
 
-The wolf Key Manager includes examples for ETSI client tests, HTTPS server / client and middle-box decryption.
+The wolf Key Manager includes examples for ETS client tests, HTTPS server / client and middle-box decryption.
 
 All test parameters for these examples are in the `examples/test_config.h`.
 
@@ -136,13 +136,13 @@ wolfKeyManager 1.0
 
 To exit the key manager use ctrl+c.
 
-### ETSI Test client
+### ETS Test client
 
-This demonstrates secure interactions with the key manager service using the ETSI HTTPS GET/PUT commands for different key types.
+This demonstrates secure interactions with the key manager service using the ETS HTTPS GET/PUT commands for different key types.
 
 ```sh
-$ ./examples/etsi_test/etsi_test -?
-etsi_test 1.0
+$ ./examples/ets_test/ets_test -?
+ets_test 1.0
 -?          Help, print this usage
 -e          Error mode, force error response
 -h <str>    Host to connect to, default localhost
@@ -150,8 +150,8 @@ etsi_test 1.0
 -t <num>    Thread pool size (stress test), default  0
 -l <num>    Log Level (1=Error to 4=Debug), default 4
 -r <num>    Requests per thread, default 1
--f <file>   <file> to store ETSI response
--u          Use ETSI Push (default is get)
+-f <file>   <file> to store ETS response
+-u          Use ETS Push (default is get)
 -s <sec>    Timeout seconds (default 10)
 -k <pem>    TLS Client TLS Key, default certs/client-key.pem
 -w <pass>   TLS Client Key Password, default wolfssl
@@ -164,11 +164,11 @@ etsi_test 1.0
 
 This client also support stress testing options:
 * Use the thread pool "-t" to spin up more threads.
-* Use the ETSI test client "-r" to make additional requests per thread.
+* Use the ETS test client "-r" to make additional requests per thread.
 * Use the "-F" argument to get key for specific fingerprint (hex string of hash of public key - first 80 bits / 10 bytes)
 * Use the "-C" command to include context string (used for multiple servers).
 
-#### ETSI Fingerprint
+#### ETS Fingerprint
 
 The fingerprint is a SHA-256 hash of the ephemeral public key with the first 80 bits (10 bytes) in big endian format. If the fingerprint is blank the current active key for that TLS group will be returned (assuming it is within the expiration and use count restrictions).
 
@@ -176,20 +176,20 @@ The fingerprint is used to lookup an ephemeral key based on public key using the
 * ECC: Public X and Y hashed with SHA256 (first 10 bytes)
 * DH: Public key hashed with SHA256 (first 10 bytes)
 
-#### ETSI Context String
+#### ETS Context String
 
 The context string is used to specify additional information to the key manager to distribute keys for multiple servers.
 
 ### HTTP Server / Client
 
-We have included a simple HTTPS server to show getting the static ephemeral key using the ETSI client and key manager.
+We have included a simple HTTPS server to show getting the static ephemeral key using the ETS client and key manager.
 
 ```
 ./examples/https/server
 
 HTTPS Server: Port 443
 
-Jun 15 14:26:54 2021: [INFO] Connected to ETSI service
+Jun 15 14:26:54 2021: [INFO] Connected to ETS service
 Jun 15 14:26:54 2021: [INFO] Sent get request (117 bytes)
 Jun 15 14:26:54 2021: [DEBUG] HTTP HTTP/1.1
 Jun 15 14:26:54 2021: [DEBUG] 	Code 200: OK
@@ -199,8 +199,8 @@ Jun 15 14:26:54 2021: [DEBUG] 		Connection: : Keep-Alive
 Jun 15 14:26:54 2021: [DEBUG] 		Expires: : Tue, 15 Jun 2021 15:26:46 PDT
 Jun 15 14:26:54 2021: [DEBUG] 		Content-Length: : 121
 Jun 15 14:26:54 2021: [DEBUG] 	Body Size: 121
-Jun 15 14:26:54 2021: [INFO] Got ETSI response (121 bytes)
-Got ETSI static ephemeral key (121 bytes)
+Jun 15 14:26:54 2021: [INFO] Got ETS response (121 bytes)
+Got ETS static ephemeral key (121 bytes)
 Jun 15 14:26:54 2021: [INFO] SECP256R1: E24EF332747DF70CD4E5
 
 TLS Accept 127.0.0.1
@@ -215,7 +215,7 @@ Jun 15 14:27:01 2021: [DEBUG] 		Connection: : keep-alive
 Jun 15 14:27:01 2021: [DEBUG] 		Accept-Encoding: : gzip, deflate, br
 Jun 15 14:27:01 2021: [DEBUG] 		User-Agent: : Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1 Safari/605.1.15
 
-ETSI Key Cached (valid for 3585 sec)
+ETS Key Cached (valid for 3585 sec)
 ```
 
 ### Middle-Box Decryption of TLS traffic
@@ -269,9 +269,9 @@ Aug 03 15:05:21 2021: [INFO] Item Count: 0
 Aug 03 15:05:21 2021: [INFO] Total Size: 0
 Aug 03 15:05:21 2021: [WARN] Generating new SECP256R1 key
 Aug 03 15:05:21 2021: [INFO] Binding listener :::8119
-Aug 03 15:05:21 2021: [INFO] Setting up new ETSI conn item pool
-Aug 03 15:05:21 2021: [INFO] Growing ETSI service conn pool
-Aug 03 15:05:21 2021: [INFO] Growing ETSI service conn pool
+Aug 03 15:05:21 2021: [INFO] Setting up new ETS conn item pool
+Aug 03 15:05:21 2021: [INFO] Growing ETS service conn pool
+Aug 03 15:05:21 2021: [INFO] Growing ETS service conn pool
 Aug 03 15:05:21 2021: [INFO] SECP256R1: E24EF332747DF70CD4E5
 Aug 03 15:05:21 2021: [WARN] Vault Auth: Setting up new encryption key
 Aug 03 15:05:21 2021: [INFO] Next key renewal 3600 seconds
@@ -280,7 +280,7 @@ Aug 03 15:05:21 2021: [INFO] Next key renewal 3600 seconds
 ```
  % ./examples/https/server
 HTTPS Server: Port 443
-Aug 03 15:09:50 2021: [INFO] Connected to ETSI service
+Aug 03 15:09:50 2021: [INFO] Connected to ETS service
 ```
 
 ```
@@ -293,10 +293,10 @@ server = ::1
 server = fe80::1
 Enter the port to scan [default: 443]:
 Enter the server key [default: https://localhost:8119]:
-Aug 03 15:07:33 2021: [INFO] Connected to ETSI service
+Aug 03 15:07:33 2021: [INFO] Connected to ETS service
 ...
 
-Got ETSI static ephemeral key (121 bytes)
+Got ETS static ephemeral key (121 bytes)
 Aug 03 15:07:33 2021: [INFO] SECP256R1: E24EF332747DF70CD4E5
 Loaded key for fe80::1:443
 SSL App Data(30:323):GET / HTTP/1.1

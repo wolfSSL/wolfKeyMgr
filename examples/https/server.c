@@ -21,7 +21,7 @@
 
 #include "wolfkeymgr/mod_tls.h"
 #include "wolfkeymgr/mod_http.h"
-#include "wolfkeymgr/mod_etsi.h"
+#include "wolfkeymgr/mod_ets.h"
 #include "examples/test_config.h"
 
 #include <signal.h>        /* signal */
@@ -37,14 +37,26 @@ static void sig_handler(const int sig)
     mStop = 1;
 }
 
-static int etsi_key_cb(EtsiKey* key, void* cbCtx)
+static int ets_key_cb(EtsKey* key, void* cbCtx)
 {
     WOLFSSL_CTX* ctx = (WOLFSSL_CTX*)cbCtx;
-    int ret = wolfEtsiKeyLoadCTX(key, ctx);
+    int ret = wolfEtsKeyLoadCTX(key, ctx);
     if (ret == NOT_COMPILED_IN) {
         ret = 0; /* this is okay - if feature is not compiled in */
     }
     return ret;
+}
+
+/* usage help */
+static void Usage(void)
+{
+    printf("%s %s\n",  "https/server", PACKAGE_VERSION);
+    printf("-?          Help, print this usage\n");
+    printf("-d          Disable ETS Key Manager loading\n");
+    printf("-p <num>    Port to listen, default %d\n", HTTPS_TEST_PORT);
+    printf("-l <num>    Log Level (1=Error to 4=Debug), default %d\n",
+        WOLFKM_DEFAULT_LOG_LEVEL);
+    printf("-h <keymgr> Key Manager URL (default %s)\n", ETS_TEST_URL);
 }
 
 int https_server_test(int argc, char** argv)
@@ -58,21 +70,48 @@ int https_server_test(int argc, char** argv)
     HttpHeader headers[2];
     const char* body = HTTPS_TEST_RESPONSE;
     SOCKADDR_IN_T clientAddr;
-    const char* etsiServer = "https://" ETSI_TEST_HOST ":" ETSI_TEST_PORT_STR;
+    int port = HTTPS_TEST_PORT;
+    enum log_level_t logLevel = WOLFKM_DEFAULT_LOG_LEVEL;
+    const char* etsServer = ETS_TEST_URL;
+    int ch, useKeyMgr = 1;
 
     signal(SIGINT, sig_handler);
 
-    /* TODO: Support arguments */
-    (void)argc;
-    (void)argv;
+    /* argument processing */
+    while ((ch = getopt(argc, argv, "?p:l:dh:")) != -1) {
+        switch (ch) {
+            case '?' :
+                Usage();
+                exit(EX_USAGE);
+            case 'p' :
+                port = atoi(optarg);
+                break;
+            case 'l' :
+                logLevel = atoi(optarg);
+                if (logLevel < WOLFKM_LOG_ERROR || logLevel > WOLFKM_LOG_DEBUG) {
+                    perror("loglevel [1:4] only");
+                    exit(EX_USAGE);
+                }
+                break;
+            case 'd':
+                useKeyMgr = 0;
+                break;
+            case 'h':
+                etsServer = optarg;
+                break;
+            default:
+                Usage();
+                exit(EX_USAGE);
+        }
+    }
 
-    printf("HTTPS Server: Port %d\n", HTTPS_TEST_PORT);
+    printf("HTTPS Server: Port %d\n", port);
 
     wolfSSL_Init();
 
     /* log setup */
     /* wolfSSL_Debugging_ON(); */
-    wolfKeyMgr_SetLogFile(NULL, 0, WOLFKM_LOG_DEBUG);
+    wolfKeyMgr_SetLogFile(NULL, 0, logLevel);
 
     ctx = wolfTlsServerNew();
     if (ctx == NULL) { ret = WOLFKM_BAD_MEMORY; goto exit; }
@@ -85,14 +124,18 @@ int https_server_test(int argc, char** argv)
     if (ret != 0) goto exit;
 
     /* setup listener */
-    ret = wolfSockListen(&listenFd, HTTPS_TEST_PORT);
+    ret = wolfSockListen(&listenFd, port);
     if (ret != 0) goto exit;
 
     do {
-        ret = etsi_client_get_all(etsiServer, etsi_key_cb, ctx);
-        if (ret != 0) {
-            mStop = 1;
-            goto end_sess;
+        if (useKeyMgr) {
+            ret = ets_client_get_all(etsServer, ets_key_cb, ctx);
+            if (ret != 0) {
+                fprintf(stderr, "\nFailure connecting to key manager\n");
+                fprintf(stderr, "Make sure ./src/wolfkeymgr is running\n");
+                mStop = 1;
+                goto end_sess;
+            }
         }
 
         ret = wolfTlsAccept(ctx, listenFd, &ssl, &clientAddr,
@@ -130,7 +173,7 @@ end_sess:
 
         /* Done - send TLS shutdown message */
         if (ssl) {
-            (void)wolfTlsClose(ssl, ret == 0 ? 1 : 0);
+            (void)wolfTlsClose(ssl, ret >= 0 ? 1 : 0);
             ssl = NULL;
         }
 

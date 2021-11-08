@@ -1,4 +1,4 @@
-/* etsi_test.h
+/* ets_test.h
  *
  * Copyright (C) 2006-2021 wolfSSL Inc.
  *
@@ -19,11 +19,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
  */
 
-#ifndef WOLFKM_ETSI_TEST_H
-#define WOLFKM_ETSI_TEST_H
+#ifndef WOLFKM_ETS_TEST_H
+#define WOLFKM_ETS_TEST_H
 
 
-int etsi_test(int argc, char** argv);
+int ets_test(int argc, char** argv);
 
 
-#endif /* WOLFKM_ETSI_TEST_H */
+#endif /* WOLFKM_ETS_TEST_H */

@@ -21,25 +21,25 @@
 
 #include "examples/test_config.h"
 
-static EtsiClientCtx* gEtsiClient = NULL;
+static EtsClientCtx* gEtsClient = NULL;
 
-/* ETSI Client Helpers */
-int etsi_client_connect(const char* urlStr)
+/* ETS Client Helpers */
+int ets_client_connect(const char* urlStr)
 {
     int ret = 0;
     static char urlStrCopy[HTTP_MAX_URI];
     static HttpUrl url;
 
     /* setup key manager connection */
-    if (gEtsiClient == NULL) {
-        wolfEtsiClientInit();
+    if (gEtsClient == NULL) {
+        wolfEtsClientInit();
 
-        gEtsiClient = wolfEtsiClientNew();
-        if (gEtsiClient) {
-            wolfEtsiClientAddCA(gEtsiClient, ETSI_TEST_CLIENT_CA);
-            wolfEtsiClientSetKey(gEtsiClient,
-                ETSI_TEST_CLIENT_KEY, ETSI_TEST_CLIENT_PASS,
-                ETSI_TEST_CLIENT_CERT, WOLFSSL_FILETYPE_PEM);
+        gEtsClient = wolfEtsClientNew();
+        if (gEtsClient) {
+            wolfEtsClientAddCA(gEtsClient, ETS_TEST_CLIENT_CA);
+            wolfEtsClientSetKey(gEtsClient,
+                ETS_TEST_CLIENT_KEY, ETS_TEST_CLIENT_PASS,
+                ETS_TEST_CLIENT_CERT, WOLFSSL_FILETYPE_PEM);
 
             if (urlStr) {
                 strncpy(urlStrCopy, urlStr, (HTTP_MAX_URI - 1));
@@ -47,11 +47,11 @@ int etsi_client_connect(const char* urlStr)
                 wolfHttpUrlDecode(&url, urlStrCopy);
             }
 
-            ret = wolfEtsiClientConnect(gEtsiClient, url.domain, url.port,
-                ETSI_TEST_TIMEOUT_MS);
+            ret = wolfEtsClientConnect(gEtsClient, url.domain, url.port,
+                ETS_TEST_TIMEOUT_MS);
             if (ret != 0) {
-                printf("Error connecting to ETSI server %s! %d\n", urlStr, ret);
-                etsi_client_cleanup();
+                printf("Error connecting to ETS server %s! %d\n", urlStr, ret);
+                ets_client_cleanup();
             }
         }
         else {
@@ -61,60 +61,60 @@ int etsi_client_connect(const char* urlStr)
     return ret;
 }
 
-int etsi_client_get(const char* urlStr, EtsiKey* key, int keyType)
+int ets_client_get(const char* urlStr, EtsKey* key, int keyType)
 {
     int ret;
-    const char* keyStr = wolfEtsiKeyGetTypeStr(keyType);
+    const char* keyStr = wolfEtsKeyGetTypeStr(keyType);
     if (keyStr == NULL) {
         return WOLFKM_NOT_COMPILED_IN;
     }
 
-    ret = etsi_client_connect(urlStr);
+    ret = ets_client_connect(urlStr);
     if (ret == 0 && key != NULL) {
         /* Get and set a static ephemeral for each supported key type */
-        ret = wolfEtsiClientGet(gEtsiClient, key, keyType, NULL, NULL,
-            ETSI_TEST_TIMEOUT_MS);
+        ret = wolfEtsClientGet(gEtsClient, key, keyType, NULL, NULL,
+            ETS_TEST_TIMEOUT_MS);
 
         /* negative means error */
         if (ret < 0) {
-            printf("Error getting ETSI %s static ephemeral key! %d\n", keyStr, ret);
-            etsi_client_cleanup();
+            printf("Error getting ETS %s static ephemeral key! %d\n", keyStr, ret);
+            ets_client_cleanup();
         }
         /* positive return means new key returned */
         else if (ret > 0) {
-            printf("Got ETSI %s static ephemeral key (%d bytes)\n", keyStr, key->responseSz);
-            wolfEtsiKeyPrint(key);
+            printf("Got ETS %s static ephemeral key (%d bytes)\n", keyStr, key->responseSz);
+            wolfEtsKeyPrint(key);
         }
         /* zero means, same key is used - key has not changed */
         else {
-            printf("ETSI %s Key Cached (valid for %lu sec)\n",
+            printf("ETS %s Key Cached (valid for %lu sec)\n",
                 keyStr, key->expires - wolfGetCurrentTimeT());
         }
     }
     return ret;
 }
 
-int etsi_client_get_all(const char* urlStr, etsi_client_key_cb cb,
+int ets_client_get_all(const char* urlStr, ets_client_key_cb cb,
     void* cbCtx)
 {
     int ret = WOLFKM_NOT_COMPILED_IN;
 #ifdef HAVE_ECC
-    static EtsiKey keyEcc;
+    static EtsKey keyEcc;
 #endif
 #ifndef NO_DH
-    static EtsiKey keyDh;
+    static EtsKey keyDh;
 #endif
 #ifdef HAVE_CURVE25519
-    static EtsiKey keyX25519;
+    static EtsKey keyX25519;
 #endif
 #ifdef HAVE_CURVE448
-    static EtsiKey keyX448;
+    static EtsKey keyX448;
 #endif
 
     /* Get static ephemeral for each supported key type */
 #ifdef HAVE_ECC
     if (ret == 0 || ret == WOLFKM_NOT_COMPILED_IN) {
-        ret = etsi_client_get(urlStr, &keyEcc, ETSI_KEY_TYPE_SECP256R1);
+        ret = ets_client_get(urlStr, &keyEcc, ETS_KEY_TYPE_SECP256R1);
         if (ret >= 0 && cb != NULL) {
             ret = cb(&keyEcc, cbCtx);
         }
@@ -122,7 +122,7 @@ int etsi_client_get_all(const char* urlStr, etsi_client_key_cb cb,
 #endif
 #ifndef NO_DH
     if (ret == 0 || ret == WOLFKM_NOT_COMPILED_IN) {
-        ret = etsi_client_get(urlStr, &keyDh, ETSI_KEY_TYPE_FFDHE_2048);
+        ret = ets_client_get(urlStr, &keyDh, ETS_KEY_TYPE_FFDHE_2048);
         if (ret >= 0 && cb != NULL) {
             ret = cb(&keyDh, cbCtx);
         }
@@ -130,7 +130,7 @@ int etsi_client_get_all(const char* urlStr, etsi_client_key_cb cb,
 #endif
 #ifdef HAVE_CURVE25519
     if (ret == 0 || ret == WOLFKM_NOT_COMPILED_IN) {
-        ret = etsi_client_get(urlStr, &keyX25519, ETSI_KEY_TYPE_X25519);
+        ret = ets_client_get(urlStr, &keyX25519, ETS_KEY_TYPE_X25519);
         if (ret >= 0 && cb != NULL) {
             ret = cb(&keyX25519, cbCtx);
         }
@@ -138,7 +138,7 @@ int etsi_client_get_all(const char* urlStr, etsi_client_key_cb cb,
 #endif
 #ifdef HAVE_CURVE448
     if (ret == 0 || ret == WOLFKM_NOT_COMPILED_IN) {
-        ret = etsi_client_get(urlStr, &keyX448, ETSI_KEY_TYPE_X448);
+        ret = ets_client_get(urlStr, &keyX448, ETS_KEY_TYPE_X448);
         if (ret >= 0 && cb != NULL) {
             ret = cb(&keyX448, cbCtx);
         }
@@ -151,7 +151,7 @@ int etsi_client_get_all(const char* urlStr, etsi_client_key_cb cb,
     return ret;
 }
 
-int etsi_client_find(const char* urlStr, EtsiKey* key, int namedGroup,
+int ets_client_find(const char* urlStr, EtsKey* key, int namedGroup,
     const byte* pub, word32 pubSz)
 {
     int ret;
@@ -159,36 +159,36 @@ int etsi_client_find(const char* urlStr, EtsiKey* key, int namedGroup,
     if (key == NULL)
         return BAD_FUNC_ARG;
 
-    ret = etsi_client_connect(urlStr);
+    ret = ets_client_connect(urlStr);
     if (ret == 0) {
-        char fpStr[ETSI_MAX_FINGERPRINT_STR];
+        char fpStr[ETS_MAX_FINGERPRINT_STR];
         word32 fpStrSz = (word32)sizeof(fpStr);
 
-        ret = wolfEtsiCalcTlsFingerprint((EtsiKeyType)namedGroup, pub, pubSz,
+        ret = wolfEtsCalcTlsFingerprint((EtsKeyType)namedGroup, pub, pubSz,
             fpStr, &fpStrSz);
         if (ret == 0) {
-            ret = wolfEtsiClientFind(gEtsiClient, key, namedGroup, fpStr,
-                NULL, ETSI_TEST_TIMEOUT_MS);
+            ret = wolfEtsClientFind(gEtsClient, key, namedGroup, fpStr,
+                NULL, ETS_TEST_TIMEOUT_MS);
         }
         if (ret < 0) {
-            printf("Error finding ETSI static ephemeral key! %d\n", ret);
-            etsi_client_cleanup();
+            printf("Error finding ETS static ephemeral key! %d\n", ret);
+            ets_client_cleanup();
         }
         else {
-            printf("Found ETSI static ephemeral key (%d bytes)\n",
+            printf("Found ETS static ephemeral key (%d bytes)\n",
                 key->responseSz);
-            wolfEtsiKeyPrint(key);
+            wolfEtsKeyPrint(key);
         }
     }
     return ret;
 }
 
-void etsi_client_cleanup(void)
+void ets_client_cleanup(void)
 {
-    if (gEtsiClient) {
-        wolfEtsiClientFree(gEtsiClient);
-        gEtsiClient = NULL;
+    if (gEtsClient) {
+        wolfEtsClientFree(gEtsClient);
+        gEtsClient = NULL;
 
-        wolfEtsiClientCleanup();
+        wolfEtsClientCleanup();
     }
 }
