@@ -385,7 +385,7 @@ int middlebox_decrypt_test(int argc, char** argv)
 #endif
 #ifdef DEBUG_WOLFSSL
     /* log setup */
-    wolfSSL_Debugging_ON();
+    /* wolfSSL_Debugging_ON(); */
     wolfKeyMgr_SetLogFile(NULL, 0, WOLFKM_LOG_DEBUG);
 #endif
     ssl_Trace("./tracefile.txt", err);
