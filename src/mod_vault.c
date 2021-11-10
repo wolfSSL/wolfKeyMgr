@@ -184,14 +184,16 @@ int wolfVaultOpen(wolfVaultCtx** ctx, const char* file)
             ret = WOLFKM_BAD_FILE;
         }
 
-        /* read remainder */
-        headSz = ctx_new->header.headerSz-headSz;
-        ret = (int)fread(headPtr, 1, headSz, ctx_new->fd);
-        ret = (ret == headSz) ? 0 : WOLFKM_BAD_FILE;
+        if (ret == 0) {
+            /* read remainder */
+            headSz = ctx_new->header.headerSz-headSz;
+            ret = (int)fread(headPtr, 1, headSz, ctx_new->fd);
+            ret = (ret == headSz) ? 0 : WOLFKM_BAD_FILE;
 
-        vaultSz = wolfVaultGetSize(ctx_new);
-        if (vaultSz > ctx_new->header.headerSz)
-            vaultSz -= ctx_new->header.headerSz;
+            vaultSz = wolfVaultGetSize(ctx_new);
+            if (vaultSz > ctx_new->header.headerSz)
+                vaultSz -= ctx_new->header.headerSz;
+        }
         if (ret == 0 && ctx_new->header.vaultSz != vaultSz) {
             XLOG(WOLFKM_LOG_ERROR, "Vault size does not match actual %lu != %lu\n",
                 vaultSz, ctx_new->header.vaultSz);
