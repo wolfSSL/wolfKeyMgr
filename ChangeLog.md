@@ -1,3 +1,15 @@
+# wolfKeyMgr v1.1 (Nov 9, 2021)
+* Added support for x448 (curve448).
+* Added argument support to HTTP server.
+* Fixed `ets_test` help messages for fingerprint and context string.
+* Fix to use `memmove` for relocation of memory within same buffer. 
+* Fixed sanitizer and scan-build reports.
+* Fixed support for `HAVE_PUBLIC_FFDHE` not defined.
+* Fixed HTTPS example server to send shutdown.
+* Renamed "ETSI" API/structs to be "ETS" (Enterprise Transport Security) not ETSI org.
+* Improved error reporting when connection to key manager fails.
+* Improved help on middlebox/decrypt tool.
+
 # wolfKeyMgr v1.0 (Sep 1, 2021)
 * Support for Curve25519 and Curve448 in key manager.
 * Support for Curve25519 in middle-box decryption.

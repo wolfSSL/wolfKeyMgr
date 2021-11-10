@@ -298,7 +298,10 @@ void ServiceConnFree(SvcConn* conn)
 
     me = conn->me;
 
-    XLOG(WOLFKM_LOG_DEBUG, "Freeing %s Service Connection\n", conn->svc->desc);
+    if (conn->svc) {
+        XLOG(WOLFKM_LOG_DEBUG, "Freeing %s Service Connection\n",
+            conn->svc->desc);
+    }
     DecrementCurrentConnections(conn);
 
     if (conn->svc && conn->svc->closeCb) {

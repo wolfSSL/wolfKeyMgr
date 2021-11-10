@@ -50,7 +50,7 @@ $ ./autogen.sh
 $ git clone https://github.com/wolfssl/wolfssl
 $ cd wolfssl
 $ ./autogen.sh
-$ ./configure --enable-sniffer --enable-curve25519 CFLAGS="-DWOLFSSL_DH_EXTRA"
+$ ./configure --enable-sniffer --enable-curve25519 --enable-curve448 CFLAGS="-DWOLFSSL_DH_EXTRA"
 $ make
 $ make check   # (optional, but highly recommended)
 $ sudo make install
@@ -60,9 +60,9 @@ Notes:
 
 * To enable all Intel (AESNI/AVX) speedups use `--enable-intelasm --enable-sp --enable-sp-asm`
 * To enable all ARMv8 (aarch64) speedups use `--enable-armasm --enable-sp --enable-sp-asm`
-* Requires at least wolfSSL v4.8.0 with PR:
-   - https://github.com/wolfSSL/wolfssl/pull/4181
-   - https://github.com/wolfSSL/wolfssl/pull/4335 (required for Curve25519)
+
+* Requires at least wolfSSL v5.0.0 with PR:
+   - https://github.com/wolfSSL/wolfssl/pull/4522 (required for Curve448)
 
 2. Install libevent version 2.0+
 
@@ -116,22 +116,25 @@ This application handles secure distribution and optional storage of the generat
 
 ```sh
 $ ./src/wolfkeymgr -?
-wolfKeyManager 1.0
+wolfKeyManager 1.1
 -?          Help, print this usage
 -i          Do not chdir / in daemon mode
 -b          Daemon mode, run in background
 -p <str>    Pid File name, default ./wolfkeymgr.pid
+-P <port>   Listener port, default 8119
 -l <num>    Log Level (1=Error to 4=Debug), default 4
 -f <str>    Log file name, default None
 -o <num>    Max open files, default  1024
 -s <num>    Seconds to timeout non-push connections, default 60
 -r <num>    Key renewal timeout, default 3600
+-u <num>    Key renewal max use count, default 100
 -t <num>    Thread pool size, default  16
--k <pem>    TLS Server TLS Key, default ./certs/server-key.pem
+-k <pem>    TLS Server TLS Key, default ./certs/server-rsa-key.pem
 -w <pass>   TLS Server Key Password, default wolfssl
--c <pem>    TLS Server Certificate, default ./certs/server-cert.pem
+-c <pem>    TLS Server Certificate, default ./certs/server-rsa-cert.pem
 -A <pem>    TLS CA Certificate, default ./certs/ca-cert.pem
 -K <keyt>   Key Type: SECP256R1, FFDHE_2048, X25519 or X448 (default SECP256R1)
+-v <file>   Vault file for key storage, default ./wolfkeymgr.vault
 ```
 
 To exit the key manager use ctrl+c.
@@ -142,7 +145,7 @@ This demonstrates secure interactions with the key manager service using the ETS
 
 ```sh
 $ ./examples/ets_test/ets_test -?
-ets_test 1.0
+ets_test 1.1
 -?          Help, print this usage
 -e          Error mode, force error response
 -h <str>    Host to connect to, default localhost
@@ -158,8 +161,8 @@ ets_test 1.0
 -c <pem>    TLS Client Certificate, default certs/client-cert.pem
 -A <pem>    TLS CA Certificate, default certs/ca-cert.pem
 -K <keyt>   Key Type: SECP256R1, FFDHE_2048, X25519 or X448 (default SECP256R1)
--F <fprint> Fingerprint of ephemeral public key (first 80-bit of pkey hash as hex string)
--C <ctxstr> Context string (used for multiple servers)
+-F <fprint> Fingerprint to find (first 80-bit of pkey hash as hex string)
+-C <name>   Unique key name (used for multiple servers)
 ```
 
 This client also support stress testing options:
@@ -225,8 +228,15 @@ This is a passive way to decrypt TLS traffic including Perfect Forward Secrecy (
 This can be run in a real-time mode capturing ethernet traffic on a port for one or more server interfaces. It can also be run passing a previously captured pcap file.
 
 ```sh
-./examples/middlebox/decrypt -?
-usage: ./decrypt or ./decrypt dumpFile keyServerURL [server] [port] [password]
+$ ./examples/middlebox/decrypt -?
+decrypt 1.1
+usage: ./decrypt or ./decrypt pcapFile keyServerURL [server] [port] [password]
+-?           Help, print this usage
+pcapFile     A previously saved pcap file
+keyServerURL Key Manager URL or private key as PEM (default https://localhost:8119)
+server       The server’s IP address (v4 or v6) (default 127.0.0.1)
+port         The server port to sniff (default 443)
+password     Private Key Password if required
 ```
 
 

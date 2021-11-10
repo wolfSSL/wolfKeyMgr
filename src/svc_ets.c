@@ -625,7 +625,12 @@ static int wolfEtsSvcVaultAuthCb(wolfVaultCtx* ctx, byte* key, word32 keySz,
     if (memcmp(keyEnc, zeroBuffer, keyEncSz) == 0) {
         /* Generate key for encryption */
         ret = wc_RNG_GenerateBlock(&rng, key, keySz);
-
+        if (ret != 0) {
+            XLOG(WOLFKM_LOG_ERROR, "Error %s (%d) generating key\n",
+                wolfKeyMgr_GetError(ret), ret);
+            wc_FreeRng(&rng);
+            return ret;
+        }
         newKey = 1;
     }
 
@@ -677,22 +682,24 @@ static int wolfEtsSvcVaultAuthCb(wolfVaultCtx* ctx, byte* key, word32 keySz,
 
     if (newKey || ret != 0) {
         XLOG(WOLFKM_LOG_WARN, "Vault Auth: Setting up new encryption key\n");
+        ret = 0; /* reset error code */
         if (!newKey) {
             /* Generate key for encryption */
             ret = wc_RNG_GenerateBlock(&rng, key, keySz);
         }
-
-        /* use long term private RSA key to encrypt key */
-        ret = wc_RsaPublicEncrypt(key, keySz, keyEnc, privKeySz, &rsa,
-            &rng);
-        if (ret > 0) {
-            if (ret != (int)privKeySz) {
-                XLOG(WOLFKM_LOG_WARN, "Vault Auth: "
-                    "Encrypted key size %d not expected %d\n", ret, privKeySz);
+        if (ret == 0) {
+            /* use long term private RSA key to encrypt key */
+            ret = wc_RsaPublicEncrypt(key, keySz, keyEnc, privKeySz, &rsa,
+                &rng);
+            if (ret > 0) {
+                if (ret != (int)privKeySz) {
+                    XLOG(WOLFKM_LOG_WARN, "Vault Auth: "
+                        "Encrypted key size %d not expected %d\n", ret, privKeySz);
+                }
+                ret = 0; /* success */
             }
-            ret = 0; /* success */
         }
-        else {
+        if (ret != 0) {
             XLOG(WOLFKM_LOG_ERROR, "Vault Auth: encrypt key error %s (%d)\n",
                 wolfKeyMgr_GetError(ret), ret);
         }

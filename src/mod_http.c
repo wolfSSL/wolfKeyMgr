@@ -165,7 +165,6 @@ static void HttpParseHeader(HttpHeader* headers, word32* headerCount, char* hdrS
 int wolfHttpServer_ParseRequest(HttpReq* req, byte* buf, word32 sz)
 {
     char* sec = (char*)buf, *endline, *last;
-    word32 len = sz;
     word32 itemSz;
 
     if (req == NULL)  {
@@ -185,7 +184,7 @@ int wolfHttpServer_ParseRequest(HttpReq* req, byte* buf, word32 sz)
     }
     req->method = sec;
     itemSz = strlen(sec) + 1; /* include space */
-    sec += itemSz; len -= itemSz;
+    sec += itemSz;
 
     /* Find end of line */
     endline = strstr(sec, kCrlf);
@@ -291,7 +290,6 @@ int wolfHttpServer_EncodeResponse(int rspCode, const char* message,
             bodySz = remain;
         memcpy(out, body, bodySz);
         out += bodySz;
-        remain -= bodySz;
     }
 
     /* calculate total length */
@@ -306,7 +304,6 @@ int wolfHttpServer_EncodeResponse(int rspCode, const char* message,
 int wolfHttpClient_ParseResponse(HttpRsp* rsp, char* buf, word32 sz)
 {
     char* sec = buf, *endline;
-    word32 len = sz;
     word32 itemSz;
 
     if (rsp == NULL)  {
@@ -322,7 +319,7 @@ int wolfHttpClient_ParseResponse(HttpRsp* rsp, char* buf, word32 sz)
     }
     rsp->version = sec;
     itemSz = strlen(sec) + 1; /* include space */
-    sec += itemSz; len -= itemSz;
+    sec += itemSz;
 
     /* HTTP Response Code */
     /* find next space */
@@ -332,7 +329,7 @@ int wolfHttpClient_ParseResponse(HttpRsp* rsp, char* buf, word32 sz)
     }
     rsp->code = atoi(sec);
     itemSz = strlen(sec) + 1; /* include space */
-    sec += itemSz; len -= itemSz;
+    sec += itemSz;
 
     /* HTTP Response Message */
     /* find end of line */

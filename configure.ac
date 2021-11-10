@@ -5,7 +5,7 @@
 
 AC_PREREQ(2.59)
 
-AC_INIT([wolfKeyManager],[1.0],[http://www.wolfssl.com])
+AC_INIT([wolfKeyManager],[1.1],[http://www.wolfssl.com])
 AC_CONFIG_AUX_DIR(config)
 AC_CONFIG_HEADERS([wolfkeymgr/config.h])
 AC_CONFIG_MACRO_DIR(m4)
@@ -71,7 +71,7 @@ LT_PREREQ([2.2])
 LT_INIT([disable-static win32-dll])
 
 # Shared library versioning
-WOLFKM_LIBRARY_VERSION=8:0:0
+WOLFKM_LIBRARY_VERSION=9:0:0
 #                      | | |
 #               +------+ | +---+
 #               |        |     |
