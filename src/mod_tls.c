@@ -191,7 +191,12 @@ int wolfTlsSetKey(WOLFSSL_CTX* ctx, const char* keyFile,
 
     if (keyFile) {
         if (fileType == WOLFSSL_FILETYPE_PEM && keyPassword) {
+        #ifdef WOLFSSL_ENCRYPTED_KEYS
             wolfSSL_CTX_set_default_passwd_cb_userdata(ctx, (void*)keyPassword);
+        #else
+            XLOG(WOLFKM_LOG_WARN, "Key password support not enabled. "
+                                "Please build wolfSSL with --enable-enckeys\n");
+        #endif
         }
         ret = wolfSSL_CTX_use_PrivateKey_file(ctx, keyFile, fileType);
     }
