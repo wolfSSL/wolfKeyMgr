@@ -50,7 +50,7 @@ $ ./autogen.sh
 $ git clone https://github.com/wolfssl/wolfssl
 $ cd wolfssl
 $ ./autogen.sh
-$ ./configure --enable-sniffer --enable-curve25519 --enable-curve448 CFLAGS="-DWOLFSSL_DH_EXTRA"
+$ ./configure --enable-sniffer --enable-curve25519 --enable-curve448 --enable-enckeys CFLAGS="-DWOLFSSL_DH_EXTRA"
 $ make
 $ make check   # (optional, but highly recommended)
 $ sudo make install

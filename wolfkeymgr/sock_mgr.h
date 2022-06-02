@@ -152,7 +152,7 @@ struct SvcConn {
 
 typedef struct SvcConnList {
     SvcConn* head;
-    /* no locking needed, this list is only accedded by the working thread */
+    /* no locking needed, this list is only accepted by the working thread */
 } SvcConnList;
 
 
