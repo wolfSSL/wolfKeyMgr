@@ -45,8 +45,8 @@ jobs:
       - name: wolfKeyMgr build
         run: |
           ./autogen.sh
-          ./configure
-          make
+          ./configure ${{inputs.config-args}}
+          make ${{inputs.make-args}}
       - name: wolfKeyMgr make check
         run: make check
       - name: wolfKeyMgr make install
@@ -56,11 +56,11 @@ jobs:
 
         # wolfKeyMgr examples
       - name: start key manager service
-        run: ./src/wolfkeymgr &
+        run: sudo ./src/wolfkeymgr &
       - name: run https server
-        run: ./examples/https/server &
+        run: sudo ./examples/https/server &
       - name: run the middle box decryptor
-        run: NOSTDIN=1 ./examples/middlebox/decrypt &
+        run: sudo NOSTDIN=1 ./examples/middlebox/decrypt &
       - name: run the https client
         run: ./examples/https/client
 
