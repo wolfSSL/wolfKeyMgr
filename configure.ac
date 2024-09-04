@@ -124,7 +124,7 @@ LIB_SOCKET_NSL
 
 # SNIFFER
 AC_ARG_ENABLE([sniffer],
-   [AS_HELP_STRING([--enable-sniffer],[Enable sniffer support (default: disabled)])],
+   [AS_HELP_STRING([--enable-sniffer],[Enable sniffer support (default: enabled)])],
    [ ENABLED_SNIFFER=$enableval ],
    [ ENABLED_SNIFFER=yes ]
    )

@@ -102,7 +102,7 @@ Notes:
 * A custom install location can be specified using: `./configure --prefix=/opt/local`
 * `autogen.sh` is script to generate configure, you'll need the autoconf tools
 installed, then proceed to the next step.
-* `src/wolfkeymgr` is the key manager service / dameon. A make install will typically put it into `/usr/local/bin/wolfkeymgr` or ``/usr/bin/wolfkeymgr`.
+* `src/wolfkeymgr` is the key manager service / daemon. A make install will typically put it into `/usr/local/bin/wolfkeymgr` or ``/usr/bin/wolfkeymgr`.
 
 ## Examples
 

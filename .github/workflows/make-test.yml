@@ -1,0 +1,76 @@
+name: wolfKeyMgr Reusable Build Workflow
+
+on:
+
+  workflow_call:
+    inputs:
+      config-args:
+        required: false
+        type: string
+      make-args:
+        required: false
+        type: string
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install libevent and libpcap
+        run: |
+          sudo apt update
+          sudo apt install -y libevent-dev libpcap-dev
+
+  # pull wolfKeyMgr
+      - uses: actions/checkout@master
+
+  # wolfSSL build, check and install
+      - uses: actions/checkout@master
+        with:
+          repository: wolfssl/wolfssl
+          path: wolfssl
+      - name: wolfssl build
+        working-directory: ./wolfssl
+        run: |
+          ./autogen.sh
+          ./configure --enable-sniffer --enable-curve25519 --enable-curve448 --enable-enckeys CFLAGS="-DWOLFSSL_DH_EXTRA"
+          make
+          make check
+          make dist
+          sudo make install
+
+  # wolfKeyMgr build, check and install
+      - name: wolfKeyMgr build
+        run: |
+          ./autogen.sh
+          ./configure
+          make
+      - name: wolfKeyMgr make check
+        run: make check
+      - name: wolfKeyMgr make install
+        run: sudo make install
+      - name: wolfKeyMgr make dist
+        run: make dist
+
+        # wolfKeyMgr examples
+      - name: start key manager service
+        run: ./src/wolfkeymgr &
+      - name: run https server
+        run: ./examples/https/server &
+      - name: run the middle box decryptor
+        run: NOSTDIN=1 ./examples/middlebox/decrypt &
+      - name: run the https client
+        run: ./examples/https/client
+
+
+  # capture logs on failure
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wolfKeyMgr-logs
+          path: |
+            test-suite.log
+          retention-days: 5

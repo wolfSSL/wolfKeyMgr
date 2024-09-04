@@ -41,6 +41,7 @@
 #include <string.h>        /* strcmp */
 #include <signal.h>        /* signal */
 #include <ctype.h>         /* isprint */
+#include <stdlib.h>        /* getenv */
 
 #ifndef _WIN32
     #include <sys/socket.h>    /* AF_INET */
@@ -370,7 +371,7 @@ int middlebox_decrypt_test(int argc, char** argv)
 
     signal(SIGINT, sig_handler);
 
-    if (argc == 2 && 
+    if (argc == 2 &&
            (XSTRNCMP(argv[1], "-?", 2) == 0 ||
             XSTRNCMP(argv[1], "-h", 2) == 0 ||
             XSTRNCMP(argv[1], "--help", 6) == 0))
@@ -396,6 +397,10 @@ int middlebox_decrypt_test(int argc, char** argv)
 
     if (argc == 1) {
         char cmdLineArg[128];
+        int nostdin = 0;
+        const char* nostdinStr = getenv("NOSTDIN");
+        if (nostdinStr != NULL)
+            nostdin = atoi(nostdinStr);
 
         /* normal case, user chooses device and port */
         if (pcap_findalldevs(&gPcapAllDevs, err) == -1) {
@@ -416,10 +421,12 @@ int middlebox_decrypt_test(int argc, char** argv)
                     " installed correctly and you have sufficient permissions");
         }
 
-        printf("Enter the interface number (1-%d) [default: %d]: ", i, defDev);
-        memset(cmdLineArg, 0, sizeof(cmdLineArg));
-        if (fgets(cmdLineArg, sizeof(cmdLineArg), stdin)) {
-            inum = atoi(cmdLineArg);
+        if (nostdin == 0) {
+            printf("Enter the interface number (1-%d) [default: %d]: ", i, defDev);
+            memset(cmdLineArg, 0, sizeof(cmdLineArg));
+            if (fgets(cmdLineArg, sizeof(cmdLineArg), stdin)) {
+                inum = atoi(cmdLineArg);
+            }
         }
         if (inum == 0) {
             if (defDev == 0) defDev = 1;
@@ -475,10 +482,12 @@ int middlebox_decrypt_test(int argc, char** argv)
             fprintf(stderr, "pcap_activate failed %s\n", pcap_geterr(gPcap));
         }
 
-        printf("Enter the port to scan [default: %d]: ", portDef);
-        memset(cmdLineArg, 0, sizeof(cmdLineArg));
-        if (fgets(cmdLineArg, sizeof(cmdLineArg), stdin)) {
-            port = atoi(cmdLineArg);
+        if (nostdin == 0) {
+            printf("Enter the port to scan [default: %d]: ", portDef);
+            memset(cmdLineArg, 0, sizeof(cmdLineArg));
+            if (fgets(cmdLineArg, sizeof(cmdLineArg), stdin)) {
+                port = atoi(cmdLineArg);
+            }
         }
         if (port <= 0) {
             port = portDef;
@@ -502,22 +511,26 @@ int middlebox_decrypt_test(int argc, char** argv)
         printf("Enter the server key [default: %s]: ", keyFilesSrc);
         memset(keyFilesBuf, 0, sizeof(keyFilesBuf));
         memset(keyFilesUser, 0, sizeof(keyFilesUser));
-        if (fgets(keyFilesUser, sizeof(keyFilesUser), stdin)) {
-            TrimNewLine(keyFilesUser);
-            if (strlen(keyFilesUser) > 0) {
-                keyFilesSrc = keyFilesUser;
+        if (nostdin == 0) {
+            if (fgets(keyFilesUser, sizeof(keyFilesUser), stdin)) {
+                TrimNewLine(keyFilesUser);
+                if (strlen(keyFilesUser) > 0) {
+                    keyFilesSrc = keyFilesUser;
+                }
             }
         }
         strncpy(keyFilesBuf, keyFilesSrc, sizeof(keyFilesBuf));
 
         /* optionally enter a named key (SNI) */
     #if !defined(WOLFSSL_SNIFFER_WATCH) && defined(HAVE_SNI)
-        printf("Enter alternate SNI [default: none]: ");
-        memset(cmdLineArg, 0, sizeof(cmdLineArg));
-        if (fgets(cmdLineArg, sizeof(cmdLineArg), stdin)) {
-            TrimNewLine(cmdLineArg);
-            if (strlen(cmdLineArg) > 0) {
-                sniName = cmdLineArg;
+        if (nostdin == 0) {
+            printf("Enter alternate SNI [default: none]: ");
+            memset(cmdLineArg, 0, sizeof(cmdLineArg));
+            if (fgets(cmdLineArg, sizeof(cmdLineArg), stdin)) {
+                TrimNewLine(cmdLineArg);
+                if (strlen(cmdLineArg) > 0) {
+                    sniName = cmdLineArg;
+                }
             }
         }
     #endif /* !WOLFSSL_SNIFFER_WATCH && HAVE_SNI */
