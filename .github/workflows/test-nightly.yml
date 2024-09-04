@@ -1,0 +1,34 @@
+name: wolfKeyMgr Nightly Build Workflow
+
+on:
+  schedule:
+           # ┌───────────── minute (0 - 59)
+           # │ ┌───────────── hour (0 - 23)
+           # │ │ ┌───────────── day of the month (1 - 31)
+           # │ │ │ ┌───────────── month (1 - 12)
+           # │ │ │ │ ┌───────────── day of the week (0 - 6)
+           # │ │ │ │ │
+           # │ │ │ │ │
+           # │ │ │ │ │
+           # * * * * *
+    - cron: '5 0 * * *'  # Run once per day at 5 AM
+
+jobs:
+
+  build_test:
+    uses: ./.github/workflows/make-test.yml
+    with:
+      config-args:
+      make-args:
+
+  build_debug_test:
+    uses: ./.github/workflows/make-test.yml
+    with:
+      config-args: --enable-debug
+      make-args:
+
+  build_no_vault_test:
+    uses: ./.github/workflows/make-test.yml
+    with:
+      config-args: --disable-vault
+      make-args:

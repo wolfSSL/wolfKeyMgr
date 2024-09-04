@@ -1,0 +1,27 @@
+name: wolfKeyMgr Pull Request Build Workflow
+
+on:
+  push:
+    branches: [ 'master', 'main', 'release/**' ]
+  pull_request:
+    branches: [ '*' ]
+
+jobs:
+
+  build_test:
+    uses: ./.github/workflows/make-test.yml
+    with:
+      config-args:
+      make-args:
+
+  build_debug_test:
+    uses: ./.github/workflows/make-test.yml
+    with:
+      config-args: --enable-debug
+      make-args:
+
+  build_no_vault_test:
+    uses: ./.github/workflows/make-test.yml
+    with:
+      config-args: --disable-vault
+      make-args:

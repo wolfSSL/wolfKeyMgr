@@ -968,7 +968,7 @@ void wolfKeyMgr_SetCore(void)
     }
 }
 
-/* Start process as dameon */
+/* Start process as daemon */
 /* see Advanced Programming in the Unix Environment, chapter 13 */
 int wolfKeyMgr_MakeDaemon(int chDir)
 {
