@@ -55,8 +55,8 @@ extern "C" {
     #endif
     #include <errno.h>
     #define WKM_SOCKET_T int
-    #define WKM_SOCKET_INVALID       (WKM_SOCKET_T)(0)
-    #define WKM_SOCKET_IS_INVALID(s) ((WKM_SOCKET_T)(s) < WKM_SOCKET_INVALID)
+    #define WKM_SOCKET_INVALID       (WKM_SOCKET_T)(-1)
+    #define WKM_SOCKET_IS_INVALID(s) ((WKM_SOCKET_T)(s) < 0)
 #endif
 
 #ifdef USE_IPV6
