@@ -49,7 +49,7 @@ const char* wolfHttpGetMethodStr(HttpMethodType type, word32* strLen)
             str = "DELETE";
             break;
         case HTTP_METHOD_TRACE:
-            str = "DELETE";
+            str = "TRACE";
             break;
         case HTTP_METHOD_CONNECT:
             str = "CONNECT";
@@ -250,10 +250,10 @@ int wolfHttpServer_EncodeResponse(int rspCode, const char* message,
 
     /* append version and response code / message */
     i = snprintf(out, remain, "%s %d %s\r\n", kHTTPVer, rspCode, message);
-    if (i > 0) {
-        out += i;
-        remain -= i;
-    }
+    if (i < 0 || (word32)i >= remain)
+        return WOLFKM_BAD_ARGS;
+    out += i;
+    remain -= i;
 
     /* append headers */
     for (c=0; c<(int)headerCount && remain > 0; c++) {
@@ -261,28 +261,28 @@ int wolfHttpServer_EncodeResponse(int rspCode, const char* message,
 
         i = snprintf(out, remain, "%s%s\r\n",
             wolfHttpGetHeaderStr(hdr->type, NULL), hdr->string);
-        if (i > 0) {
-            out += i;
-            remain -= i;
-        }
+        if (i < 0 || (word32)i >= remain)
+            return WOLFKM_BAD_ARGS;
+        out += i;
+        remain -= i;
     }
 
     /* append content length */
     if (bodySz > 0) {
         i = snprintf(out, remain, "%s%d\r\n",
             wolfHttpGetHeaderStr(HTTP_HDR_CONTENT_LENGTH, NULL), bodySz);
-        if (i > 0) {
-            out += i;
-            remain -= i;
-        }
+        if (i < 0 || (word32)i >= remain)
+            return WOLFKM_BAD_ARGS;
+        out += i;
+        remain -= i;
     }
 
     /* add trailing crlf and body */
     i = snprintf(out, remain, "\r\n");
-    if (i > 0) {
-        out += i;
-        remain -= i;
-    }
+    if (i < 0 || (word32)i >= remain)
+        return WOLFKM_BAD_ARGS;
+    out += i;
+    remain -= i;
 
     /* append body (optional) */
     if (body && bodySz > 0) {
@@ -357,6 +357,11 @@ int wolfHttpClient_ParseResponse(HttpRsp* rsp, char* buf, word32 sz)
         endline = strstr(sec, kCrlf); /* Find end of line */
     }
 
+    /* require the blank-line header terminator before computing the body */
+    if (endline == NULL) {
+        return HTTP_ERROR_EXPECTED_CRLF;
+    }
+
     /* calculate total length */
     itemSz = (word32)((size_t)endline - (size_t)buf);
 
@@ -384,10 +389,10 @@ int wolfHttpClient_EncodeRequest(HttpMethodType type, const char* uri,
     /* append method */
     i = snprintf(out, remain, "%s %s %s\r\n",
         wolfHttpGetMethodStr(type, NULL), uri, kHTTPVer);
-    if (i > 0) {
-        out += i;
-        remain -= i;
-    }
+    if (i < 0 || (word32)i >= remain)
+        return WOLFKM_BAD_ARGS;
+    out += i;
+    remain -= i;
 
     /* append headers */
     for (c=0; c<(int)headerCount && remain > 0; c++) {
@@ -395,10 +400,10 @@ int wolfHttpClient_EncodeRequest(HttpMethodType type, const char* uri,
 
         i = snprintf(out, remain, "%s%s\r\n",
             wolfHttpGetHeaderStr(hdr->type, NULL), hdr->string);
-        if (i > 0) {
-            out += i;
-            remain -= i;
-        }
+        if (i < 0 || (word32)i >= remain)
+            return WOLFKM_BAD_ARGS;
+        out += i;
+        remain -= i;
     }
 
     /* calculate total length */
@@ -450,20 +455,26 @@ void wolfHttpResponsePrint(HttpRsp* rsp)
 int wolfHttpUriEncode(const char *s, size_t sSz, char *enc, size_t encSz)
 {
     int idx = 0;
-    for (; idx < (int)sSz && *s; s++){
+    size_t i;
+    char c, a, b;
+    for (i = 0; i < sSz && s[i] != '\0'; i++){
+        c = s[i];
         if (idx + 3 > (int)encSz)
             return -1;
-        if (*s == '*' || *s == '-' || *s == '.' || *s == '_') {
-            char a = (char)(*s >> 4), b = (char)(*s & 0xff);
-            enc[idx++] = '%';
-            enc[idx++] = (a < 10) ? '0' + a : 'A' + a - 10;
-            enc[idx++] = (b < 10) ? '0' + b : 'A' + b - 10;
+        if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                (c >= '0' && c <= '9') ||
+                c == '-' || c == '.' || c == '_' || c == '~') {
+            enc[idx++] = c;
         }
-        else if (*s == ' ') {
+        else if (c == ' ') {
             enc[idx++] = '+';
         }
         else {
-            enc[idx++] = *s;
+            a = (char)((c >> 4) & 0x0f);
+            b = (char)(c & 0x0f);
+            enc[idx++] = '%';
+            enc[idx++] = (a < 10) ? '0' + a : 'A' + a - 10;
+            enc[idx++] = (b < 10) ? '0' + b : 'A' + b - 10;
         }
     }
     return idx;
@@ -476,7 +487,7 @@ static int hex_to_char(char a, byte* out)
     else if (a >= 'A' && a <= 'F')
         a -= 'A' - 10;
     else if (a >= 'a' && a <= 'f')
-        a -= 'a' - 'A' - 10;
+        a -= 'a' - 10;
     else
         return 0;
     *out = (byte)a;
@@ -486,10 +497,15 @@ static int hex_to_char(char a, byte* out)
 int wolfHttpUriDecode(const char *s, size_t sSz, char *dec, size_t decSz)
 {
     int idx = 0;
+    int ret = 0;
     byte a, b;
+    if (dec == NULL || decSz == 0)
+        return -1;
     for (; idx < (int)sSz && *s; s++){
-        if (idx + 1 > (int)decSz)
-            return -1;
+        if (idx + 1 >= (int)decSz) {
+            ret = -1; /* leave room for the null terminator */
+            break;
+        }
         if (*s == '%' &&
                 hex_to_char((char)s[1], &a) &&
                 hex_to_char((char)s[2], &b)) {
@@ -503,7 +519,8 @@ int wolfHttpUriDecode(const char *s, size_t sSz, char *dec, size_t decSz)
             dec[idx++] = *s;
         }
     }
-    return idx;
+    dec[idx] = '\0';
+    return (ret == 0) ? idx : ret;
 }
 
 int wolfHttpUrlDecode(HttpUrl* url, char* s)
