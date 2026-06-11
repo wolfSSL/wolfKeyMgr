@@ -8,10 +8,16 @@ on:
 
 jobs:
 
+  # Auto-resolve the latest wolfSSL -stable tag so CI tracks releases without a
+  # manual bump; refs = [ latest -stable, master ].
+  resolve:
+    uses: ./.github/workflows/_resolve-wolfssl.yml
+
   build_test:
+    needs: resolve
     strategy:
       matrix:
-        wolfssl-ref: [ master, v5.9.1-stable ]
+        wolfssl-ref: ${{ fromJson(needs.resolve.outputs.refs) }}
     uses: ./.github/workflows/make-test.yml
     with:
       config-args:
@@ -19,9 +25,10 @@ jobs:
       wolfssl-ref: ${{ matrix.wolfssl-ref }}
 
   build_debug_test:
+    needs: resolve
     strategy:
       matrix:
-        wolfssl-ref: [ master, v5.9.1-stable ]
+        wolfssl-ref: ${{ fromJson(needs.resolve.outputs.refs) }}
     uses: ./.github/workflows/make-test.yml
     with:
       config-args: --enable-debug
@@ -29,11 +36,45 @@ jobs:
       wolfssl-ref: ${{ matrix.wolfssl-ref }}
 
   build_no_vault_test:
+    needs: resolve
     strategy:
       matrix:
-        wolfssl-ref: [ master, v5.9.1-stable ]
+        wolfssl-ref: ${{ fromJson(needs.resolve.outputs.refs) }}
     uses: ./.github/workflows/make-test.yml
     with:
       config-args: --disable-vault
+      make-args:
+      wolfssl-ref: ${{ matrix.wolfssl-ref }}
+
+  build_no_sniffer_test:
+    needs: resolve
+    strategy:
+      matrix:
+        wolfssl-ref: ${{ fromJson(needs.resolve.outputs.refs) }}
+    uses: ./.github/workflows/make-test.yml
+    with:
+      config-args: --disable-sniffer
+      make-args:
+      wolfssl-ref: ${{ matrix.wolfssl-ref }}
+
+  build_vault_clear_test:
+    needs: resolve
+    strategy:
+      matrix:
+        wolfssl-ref: ${{ fromJson(needs.resolve.outputs.refs) }}
+    uses: ./.github/workflows/make-test.yml
+    with:
+      config-args: --enable-vault=clear
+      make-args:
+      wolfssl-ref: ${{ matrix.wolfssl-ref }}
+
+  build_minimal_test:
+    needs: resolve
+    strategy:
+      matrix:
+        wolfssl-ref: ${{ fromJson(needs.resolve.outputs.refs) }}
+    uses: ./.github/workflows/make-test.yml
+    with:
+      config-args: --disable-sniffer --disable-vault
       make-args:
       wolfssl-ref: ${{ matrix.wolfssl-ref }}

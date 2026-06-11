@@ -1,0 +1,79 @@
+name: wolfKeyMgr Sanitizer Build Workflow
+
+on:
+  push:
+    branches: [ 'master', 'main', 'release/**' ]
+  pull_request:
+    branches: [ '*' ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # Auto-resolve the latest wolfSSL -stable tag; refs = [ latest -stable, master ].
+  resolve:
+    uses: ./.github/workflows/_resolve-wolfssl.yml
+
+  sanitizer:
+    name: ${{ matrix.sanitizer.name }} (wolfSSL ${{ matrix.wolfssl-ref }})
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        wolfssl-ref: ${{ fromJson(needs.resolve.outputs.refs) }}
+        sanitizer:
+          - name: ASan
+            cflags: "-fsanitize=address -fno-omit-frame-pointer -g -O1"
+          - name: UBSan
+            cflags: "-fsanitize=undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -g"
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libevent-dev libpcap-dev autoconf automake libtool
+
+      - name: Checkout wolfKeyMgr
+        uses: actions/checkout@v4
+
+      - name: Build wolfSSL (${{ matrix.sanitizer.name }})
+        run: |
+          git clone --depth 1 --branch ${{ matrix.wolfssl-ref }} \
+              https://github.com/wolfSSL/wolfssl.git
+          cd wolfssl
+          ./autogen.sh
+          ./configure --enable-sniffer --enable-curve25519 --enable-curve448 \
+                      --enable-enckeys \
+                      CFLAGS="-DWOLFSSL_DH_EXTRA ${{ matrix.sanitizer.cflags }}"
+          make -j"$(nproc)"
+          sudo make install
+          sudo ldconfig
+
+      - name: Build wolfKeyMgr (${{ matrix.sanitizer.name }})
+        run: |
+          ./autogen.sh
+          ./configure CFLAGS="${{ matrix.sanitizer.cflags }}"
+          make -j"$(nproc)"
+
+      - name: make check (${{ matrix.sanitizer.name }})
+        env:
+          # detect_leaks=0: catch overflows / use-after-free now; leak
+          # detection can flag library init allocations and is left to a
+          # follow-up.
+          ASAN_OPTIONS: detect_leaks=0
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: make check
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wolfKeyMgr-${{ matrix.sanitizer.name }}-wolfssl-${{ matrix.wolfssl-ref }}-logs
+          path: |
+            test-suite.log
+            tests/*.log
+          retention-days: 5
