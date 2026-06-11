@@ -47,7 +47,7 @@ jobs:
           cd wolfssl
           ./autogen.sh
           ./configure --enable-sniffer --enable-curve25519 --enable-curve448 \
-                      --enable-enckeys \
+                      --enable-enckeys --enable-opensslextra \
                       CFLAGS="-DWOLFSSL_DH_EXTRA ${{ matrix.sanitizer.cflags }}"
           make -j"$(nproc)"
           sudo make install
