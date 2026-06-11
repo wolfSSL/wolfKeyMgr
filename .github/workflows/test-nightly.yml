@@ -16,19 +16,31 @@ on:
 jobs:
 
   build_test:
+    strategy:
+      matrix:
+        wolfssl-ref: [ master, v5.9.1-stable ]
     uses: ./.github/workflows/make-test.yml
     with:
       config-args:
       make-args:
+      wolfssl-ref: ${{ matrix.wolfssl-ref }}
 
   build_debug_test:
+    strategy:
+      matrix:
+        wolfssl-ref: [ master, v5.9.1-stable ]
     uses: ./.github/workflows/make-test.yml
     with:
       config-args: --enable-debug
       make-args:
+      wolfssl-ref: ${{ matrix.wolfssl-ref }}
 
   build_no_vault_test:
+    strategy:
+      matrix:
+        wolfssl-ref: [ master, v5.9.1-stable ]
     uses: ./.github/workflows/make-test.yml
     with:
       config-args: --disable-vault
       make-args:
+      wolfssl-ref: ${{ matrix.wolfssl-ref }}

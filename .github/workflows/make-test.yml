@@ -10,6 +10,10 @@ on:
       make-args:
         required: false
         type: string
+      wolfssl-ref:
+        required: false
+        default: master
+        type: string
 
 jobs:
 
@@ -30,6 +34,7 @@ jobs:
       - uses: actions/checkout@master
         with:
           repository: wolfssl/wolfssl
+          ref: ${{ inputs.wolfssl-ref }}
           path: wolfssl
       - name: wolfssl build
         working-directory: ./wolfssl
