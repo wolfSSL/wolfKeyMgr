@@ -23,6 +23,9 @@
 #include <wolfssl/wolfcrypt/aes.h>
 #include <wolfssl/wolfcrypt/sha256.h>
 #include <stdio.h>
+#ifndef USE_WINDOWS_API
+#include <sys/stat.h>
+#endif
 
 #ifdef WOLFKM_VAULT
 
@@ -125,6 +128,14 @@ static int wolfVaultCreateNew(wolfVaultCtx* ctx, const char* file)
     if (ctx->fd == NULL) {
         return WOLFKM_BAD_FILE;
     }
+#ifndef USE_WINDOWS_API
+    /* restrict to owner read/write; daemon mode may set a wide umask */
+    if (fchmod(fileno(ctx->fd), S_IRUSR | S_IWUSR) != 0) {
+        fclose(ctx->fd);
+        ctx->fd = NULL;
+        return WOLFKM_BAD_FILE;
+    }
+#endif
 
     /* write header */
     memset(&ctx->header, 0, sizeof(ctx->header));
@@ -178,9 +189,11 @@ int wolfVaultOpen(wolfVaultCtx** ctx, const char* file)
             ret = WOLFKM_BAD_FILE;
         }
 
-        if (ret == 0 && ctx_new->header.headerSz > sizeof(ctx_new->header)) {
-            XLOG(WOLFKM_LOG_ERROR, "Header size invalid! %u != %u\n",
-                (uint32_t)sizeof(ctx_new->header), ctx_new->header.headerSz);
+        if (ret == 0 && (ctx_new->header.headerSz > sizeof(ctx_new->header) ||
+                ctx_new->header.headerSz < (word32)headSz)) {
+            XLOG(WOLFKM_LOG_ERROR, "Header size invalid! %u (min %d, max %u)\n",
+                ctx_new->header.headerSz, headSz,
+                (uint32_t)sizeof(ctx_new->header));
             ret = WOLFKM_BAD_FILE;
         }
 
@@ -204,10 +217,16 @@ int wolfVaultOpen(wolfVaultCtx** ctx, const char* file)
     if (ret != 0) {
         /* resetting vault */
         XLOG(WOLFKM_LOG_ERROR, "Vault open failed, creating new\n");
+        if (ctx_new->fd != NULL) {
+            fclose(ctx_new->fd);
+            ctx_new->fd = NULL;
+        }
         ret = wolfVaultCreateNew(ctx_new, file);
         vaultSz = 0;
     }
     if (ret == 0) {
+        /* start item searches at the first item after the header */
+        ctx_new->itemPos = ctx_new->header.headerSz;
         XLOG(WOLFKM_LOG_INFO, "Vault %s opened (%lu bytes)\n", file, vaultSz);
     }
     else {
@@ -259,6 +278,8 @@ static int wolfVaultSetupKey(wolfVaultCtx* ctx)
     else {
         XLOG(WOLFKM_LOG_ERROR, "Error %d setting up AES key!\n", ret);
     }
+
+    wolfKeyMgr_ForceZero(key, sizeof(key));
 #endif
 
     return ret;
@@ -470,6 +491,7 @@ static int wolfVaultGetItemData(wolfVaultCtx* ctx, wolfVaultItem* item)
 #endif
     /* on error release allocated memory */
     if (ret != 0 && item->data) {
+        wolfKeyMgr_ForceZero(item->data, item->dataSz);
         free(item->data);
         item->data = NULL;
     }
@@ -526,8 +548,10 @@ int wolfVaultGet(wolfVaultCtx* ctx, wolfVaultItem* item, word32 type,
 int wolfVaultFreeItem(wolfVaultItem* item)
 {
     if (item && item->data != NULL) {
+        wolfKeyMgr_ForceZero(item->data, item->dataSz);
         free(item->data);
         item->data = NULL;
+        item->dataSz = 0;
     }
     return 0;
 }
