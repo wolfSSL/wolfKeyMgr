@@ -456,9 +456,10 @@ int wolfHttpUriEncode(const char *s, size_t sSz, char *enc, size_t encSz)
 {
     int idx = 0;
     size_t i;
-    char c, a, b;
+    byte c;
+    char a, b;
     for (i = 0; i < sSz && s[i] != '\0'; i++){
-        c = s[i];
+        c = (byte)s[i];
         if (idx + 3 > (int)encSz)
             return -1;
         if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
@@ -498,25 +499,26 @@ int wolfHttpUriDecode(const char *s, size_t sSz, char *dec, size_t decSz)
 {
     int idx = 0;
     int ret = 0;
+    size_t i;
     byte a, b;
     if (dec == NULL || decSz == 0)
         return -1;
-    for (; idx < (int)sSz && *s; s++){
+    for (i = 0; i < sSz && s[i] != '\0'; i++){
         if (idx + 1 >= (int)decSz) {
             ret = -1; /* leave room for the null terminator */
             break;
         }
-        if (*s == '%' &&
-                hex_to_char((char)s[1], &a) &&
-                hex_to_char((char)s[2], &b)) {
-            dec[idx++] = (a << 4 | b);
-            s+=2;
+        if (s[i] == '%' && i + 2 < sSz &&
+                hex_to_char(s[i+1], &a) &&
+                hex_to_char(s[i+2], &b)) {
+            dec[idx++] = (char)(a << 4 | b);
+            i += 2;
         }
-        else if (*s == '+') {
+        else if (s[i] == '+') {
             dec[idx++] = ' ';
         }
         else {
-            dec[idx++] = *s;
+            dec[idx++] = s[i];
         }
     }
     dec[idx] = '\0';

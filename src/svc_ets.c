@@ -262,7 +262,7 @@ static int SetupKeyFindResponse(SvcConn* conn, wolfVaultItem* item)
 
 static void* KeyPushWorker(void* arg)
 {
-    int ret, i;
+    int ret = 0, i;
     SvcInfo* svc = (SvcInfo*)arg;
     EtsSvcCtx* svcCtx = (EtsSvcCtx*)svc->svcCtx;
     EtsKey* key;

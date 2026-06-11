@@ -108,12 +108,16 @@ static int wkmTlsPasswordCallBack(char* passwd, int sz, int rw, void* userdata)
     int len;
     (void)rw;
 
+    if (sz <= 0)
+        return 0;
+
     /* generic default password when none is provided */
     pass = (userdata != NULL) ? (const char*)userdata : "wolfssl";
     len = (int)strlen(pass);
-    if (len > sz)
-        len = sz;
+    if (len > sz - 1)
+        len = sz - 1;
     memcpy(passwd, pass, len);
+    passwd[len] = '\0';
     return len;
 }
 #endif
