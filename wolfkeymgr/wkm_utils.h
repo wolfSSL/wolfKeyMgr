@@ -52,6 +52,15 @@ WOLFKM_API int wolfHexStringToByte(const char* in, word32 inSz, byte* out, word3
 
 WOLFKM_API int wolfSigIgnore(int sig);
 
+/* zeroize sensitive data; volatile prevents the compiler from eliding it */
+static inline void wolfKeyMgr_ForceZero(void* mem, word32 len)
+{
+    volatile byte* p = (volatile byte*)mem;
+    while (len-- > 0) {
+        *p++ = 0;
+    }
+}
+
 /* misc functions */
 #if !defined(min) && !defined(WOLFSSL_HAVE_MIN)
 static inline int min(int a, int b)

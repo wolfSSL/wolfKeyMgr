@@ -52,7 +52,8 @@ typedef struct EtsSvcCtx {
     wolfVaultCtx*   vault; /* key vault */
 #endif
 
-    byte shutdown:1; /* signal to shutdown workers */
+    byte shutdown;        /* signal to shutdown workers (guarded by kgMutex) */
+    byte kgThreadStarted; /* key gen worker thread is running */
 } EtsSvcCtx;
 static EtsSvcCtx gSvcCtx;
 
@@ -261,12 +262,13 @@ static int SetupKeyFindResponse(SvcConn* conn, wolfVaultItem* item)
 
 static void* KeyPushWorker(void* arg)
 {
-    int ret, i;
+    int ret = 0, i;
     SvcInfo* svc = (SvcInfo*)arg;
     EtsSvcCtx* svcCtx = (EtsSvcCtx*)svc->svcCtx;
     EtsKey* key;
     time_t now, nextExpires;
     int renewSec, keyGenCount;
+    int doExit = 0;
     struct timespec max_wait = {0, 0};
 
     /* generate default key */
@@ -319,14 +321,17 @@ static void* KeyPushWorker(void* arg)
         clock_gettime(CLOCK_REALTIME, &max_wait);
         max_wait.tv_sec += renewSec;
 
-        /* wait for wake signal or timeout */
+        /* re-check shutdown under the mutex so a wake signal cannot be missed */
         pthread_mutex_lock(&svcCtx->kgMutex);
-        ret = pthread_cond_timedwait(&svcCtx->kgCond, &svcCtx->kgMutex,
+        if (!svcCtx->shutdown) {
+            ret = pthread_cond_timedwait(&svcCtx->kgCond, &svcCtx->kgMutex,
                                                                      &max_wait);
+        }
+        doExit = svcCtx->shutdown;
         pthread_mutex_unlock(&svcCtx->kgMutex);
 
         XLOG(WOLFKM_LOG_DEBUG, "Key Generation Worker Wake %d sec\n", ret);
-    } while (!svcCtx->shutdown);
+    } while (!doExit);
 
     return NULL;
 }
@@ -553,8 +558,11 @@ int wolfEtsSvc_Start(SvcInfo* svc, struct event_base* mainBase,
     /* start key generation thread */
     if (pthread_create(&svcCtx->kgThread, NULL, KeyPushWorker, svc) != 0) {
         XLOG(WOLFKM_LOG_ERROR, "Error creating keygen worker\n");
+        pthread_cond_destroy(&svcCtx->kgCond);
+        pthread_mutex_destroy(&svcCtx->kgMutex);
         return WOLFKM_BAD_MEMORY;
     }
+    svcCtx->kgThreadStarted = 1;
 
     /* setup listening events - IPv6 may contain a IPv4 */
     ret = wolfKeyMgr_AddListeners(svc, AF_INET6, listenPort, mainBase);
@@ -573,13 +581,25 @@ void wolfEtsSvc_Cleanup(SvcInfo* svc)
     if (svc) {
         EtsSvcCtx* svcCtx = (EtsSvcCtx*)svc->svcCtx;
 
+        /* stop and join the worker before tearing down what it uses */
+        if (svcCtx->kgThreadStarted) {
+            pthread_mutex_lock(&svcCtx->kgMutex);
+            svcCtx->shutdown = 1;
+            pthread_cond_signal(&svcCtx->kgCond);
+            pthread_mutex_unlock(&svcCtx->kgMutex);
+            pthread_join(svcCtx->kgThread, NULL);
+        }
+
         if (svc->keyBuffer) {
+            wolfKeyMgr_ForceZero(svc->keyBuffer, svc->keyBufferSz);
             free(svc->keyBuffer);
             svc->keyBuffer = NULL;
+            svc->keyBufferSz = 0;
         }
         if (svc->certBuffer) {
             free(svc->certBuffer);
             svc->certBuffer = NULL;
+            svc->certBufferSz = 0;
         }
     #ifdef WOLFKM_VAULT
         if (svcCtx->vault) {
@@ -589,12 +609,12 @@ void wolfEtsSvc_Cleanup(SvcInfo* svc)
 
         wc_FreeRng(&svcCtx->rng);
 
-        /* signal shutdown and wake worker */
-        svcCtx->shutdown =  1;
-        WakeKeyGenWorker(svcCtx);
-
-        pthread_mutex_destroy(&svcCtx->kgMutex);
-        pthread_cond_destroy(&svcCtx->kgCond);
+        if (svcCtx->kgThreadStarted) {
+            pthread_mutex_destroy(&svcCtx->kgMutex);
+            pthread_cond_destroy(&svcCtx->kgCond);
+            svcCtx->kgThreadStarted = 0;
+        }
+        svcCtx->shutdown = 0; /* allow a re-initialized service to run */
 
         pthread_mutex_destroy(&svcCtx->lock);
     }

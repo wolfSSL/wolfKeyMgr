@@ -257,7 +257,7 @@ static int EtsClientGet(EtsClientCtx* client, EtsKey* key,
     /* TODO: handle HTTP chunked content type */
     /* TODO: handle multiple packets */
     /* TODO: Integrate HTTP processing with read to handle larger payloads */
-    key->responseSz = sizeof(key->response);
+    key->responseSz = sizeof(key->response) - 1; /* leave room for null */
     do {
         ret = wolfTlsRead(client->ssl, (byte*)key->response,
             (int*)&key->responseSz, timeoutSec);
@@ -272,10 +272,14 @@ static int EtsClientGet(EtsClientCtx* client, EtsKey* key,
     if (ret > 0) {
         /* parse HTTP server response */
         key->expires = 0;
+        key->response[key->responseSz] = '\0';
         ret = wolfHttpClient_ParseResponse(rsp,
             (char*)key->response, key->responseSz);
         if (ret == 0 && rsp->body && rsp->bodySz > 0) {
             wolfHttpResponsePrint(rsp);
+
+            /* parse expires before memmove invalidates the header pointers */
+            ParseHttpResponseExpires(rsp, key, wolfGetCurrentTimeT());
 
             /* move payload (body) to response (same buffer) */
             memmove(key->response, rsp->body, rsp->bodySz);
@@ -319,9 +323,6 @@ int wolfEtsClientGet(EtsClientCtx* client, EtsKey* key,
 
     ret = EtsClientGet(client, key, keyType, fingerprint, contextStr,
         timeoutSec, &rsp);
-    if (ret == 0) {
-        ParseHttpResponseExpires(&rsp, key, now);
-    }
     return ret;
 }
 
@@ -372,7 +373,7 @@ int wolfEtsClientPush(EtsClientCtx* client, EtsKeyType keyType,
     /* wait for key response */
     do {
         /* 0 = no timeout - blocking */
-        key.responseSz = sizeof(key.response);
+        key.responseSz = sizeof(key.response) - 1; /* leave room for null */
         ret = wolfTlsRead(client->ssl, (byte*)key.response,
             (int*)&key.responseSz, 0);
         if (ret < 0 && ret != WOLFKM_BAD_TIMEOUT) {
@@ -386,6 +387,7 @@ int wolfEtsClientPush(EtsClientCtx* client, EtsKeyType keyType,
 
             /* parse HTTP server response */
             key.expires = 0;
+            key.response[key.responseSz] = '\0';
             ret = wolfHttpClient_ParseResponse(&rsp,
                 (char*)key.response, key.responseSz);
             if (ret == 0 && rsp.body && rsp.bodySz > 0) {
@@ -395,7 +397,7 @@ int wolfEtsClientPush(EtsClientCtx* client, EtsKeyType keyType,
                 ParseHttpResponseExpires(&rsp, &key, now);
 
                 /* move payload (body) to response (same buffer) */
-                memcpy(key.response, rsp.body, rsp.bodySz);
+                memmove(key.response, rsp.body, rsp.bodySz);
                 key.responseSz = rsp.bodySz;
 
                 ret = cb(client, &key, cbCtx);
@@ -414,6 +416,8 @@ int wolfEtsClientPush(EtsClientCtx* client, EtsKeyType keyType,
         /* zero response means try again */
     } while (ret == 0 || ret == WOLFKM_BAD_TIMEOUT);
     wc_UnLockMutex(&client->lock);
+
+    wolfKeyMgr_ForceZero(&key, sizeof(key));
 
     return ret;
 }
@@ -687,7 +691,7 @@ static int wolfKeyCalcFingerprint(EtsKeyType keyType, const byte* pub, word32 pu
         /* Return 10-bytes truncated (big endian) */
         if (tmpSz > WC_SHA256_DIGEST_SIZE)
             tmpSz = WC_SHA256_DIGEST_SIZE;
-        memcpy(fp, pub, tmpSz);
+        memcpy(fp, digest, tmpSz);
         *fpSz = tmpSz;
     }
 
@@ -904,6 +908,8 @@ static int GenNewKeyDh(EtsKey* key, EtsKeyType keyType, WC_RNG* rng)
             ret = 0; /* size is returned in key->responseSz */
     }
     wc_FreeDhKey(&dh);
+
+    wolfKeyMgr_ForceZero(privKey, sizeof(privKey));
 
     if (ret != 0) {
         XLOG(WOLFKM_LOG_ERROR, "DH Key Generation Failed! %d\n", ret);
@@ -1153,7 +1159,9 @@ int wolfEtsKeyComputeName(EtsKey* key)
     }
 #endif
 
-    key->fingerprintSz = fpSz;
+    if (ret == 0) {
+        key->fingerprintSz = fpSz;
+    }
 
     return ret;
 }
@@ -1193,6 +1201,7 @@ void wolfEtsKeyFree(EtsKey* key)
 {
     if (key) {
         if (key->isDynamic) {
+            wolfKeyMgr_ForceZero(key, sizeof(*key));
             free(key);
         }
     }

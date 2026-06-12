@@ -308,7 +308,7 @@ int wolfSocketWrite(WKM_SOCKET_T sockFd, const byte* buffer,
 
 void wolfSocketClose(WKM_SOCKET_T sockFd)
 {
-    if (WKM_SOCKET_IS_INVALID(sockFd)) {
+    if (!WKM_SOCKET_IS_INVALID(sockFd)) {
     #ifdef USE_WINDOWS_API
         closesocket(sockFd);
     #else

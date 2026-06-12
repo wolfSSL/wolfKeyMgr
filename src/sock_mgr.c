@@ -474,7 +474,7 @@ static int DoRead(struct bufferevent* bev, SvcConn* conn)
 
     ret = wolfSSL_read(conn->ssl,
                             conn->request + conn->requestSz,
-                            sizeof(conn->request) - conn->requestSz);
+                            sizeof(conn->request) - conn->requestSz - 1);
     if (ret < 0) {
         int err = wolfSSL_get_error(conn->ssl, 0);
         if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
@@ -511,6 +511,9 @@ static void ReadCb(struct bufferevent* bev, void* ctx)
     }
     else if (ret > 0) {
         conn->requestSz += ret;
+
+        /* terminate so string-based HTTP parsing cannot scan past the buffer */
+        conn->request[conn->requestSz] = '\0';
 
         /* handle request with callback */
         if (conn->svc && conn->svc->requestCb) {
@@ -996,7 +999,7 @@ int wolfKeyMgr_MakeDaemon(int chDir)
         }
     }
 
-    umask(0);                     /* always successful */
+    umask(0077);                  /* restrict created files to owner */
 
     fd = open("/dev/null", O_RDWR, 0);
     if (fd == -1) {
