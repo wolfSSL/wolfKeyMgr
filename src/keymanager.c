@@ -23,6 +23,73 @@
 
 #include <unistd.h>    /* getopt */
 #include <signal.h>    /* SIGPIPE */
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
+
+#define WOLFKM_PASSWORD_MAX 255
+
+static int LoadPasswordFile(const char* fileName, char* password,
+    size_t passwordSz)
+{
+    int ret = 0;
+    int fd;
+    size_t length = 0;
+    ssize_t readSz;
+    struct stat fileStat;
+    char input[WOLFKM_PASSWORD_MAX + 3];
+
+    if (fileName == NULL || password == NULL || passwordSz < 2)
+        return WOLFKM_BAD_ARGS;
+
+    fd = open(fileName, O_RDONLY | O_NONBLOCK);
+    if (fd < 0)
+        return WOLFKM_BAD_FILE;
+
+    if (fstat(fd, &fileStat) != 0 || !S_ISREG(fileStat.st_mode) ||
+            (fileStat.st_mode & (S_IRWXG | S_IRWXO)) != 0) {
+        ret = WOLFKM_BAD_FILE;
+    }
+    while (ret == 0 && length < sizeof(input)) {
+        readSz = read(fd, input + length, sizeof(input) - length);
+        if (readSz > 0) {
+            length += (size_t)readSz;
+        }
+        else if (readSz == 0) {
+            break;
+        }
+        else if (errno != EINTR) {
+            ret = WOLFKM_BAD_FILE;
+        }
+    }
+    if (ret == 0 && length == sizeof(input))
+        ret = WOLFKM_BAD_ARGS;
+    if (ret == 0 && length > 0 && input[length - 1] == '\n') {
+        length--;
+        if (length > 0 && input[length - 1] == '\r')
+            length--;
+    }
+    else if (ret == 0 && length > 0 && input[length - 1] == '\r') {
+        length--;
+    }
+    if (ret == 0) {
+        if (length == 0 || length >= passwordSz ||
+                memchr(input, '\0', length) != NULL) {
+            ret = WOLFKM_BAD_ARGS;
+        }
+        else {
+            memcpy(password, input, length);
+            password[length] = '\0';
+        }
+    }
+
+    close(fd);
+    wolfKeyMgr_ForceZero(input, sizeof(input));
+    if (ret != 0)
+        wolfKeyMgr_ForceZero(password, (word32)passwordSz);
+
+    return ret;
+}
 
 /* usage help */
 static void Usage(void)
@@ -42,10 +109,10 @@ static void Usage(void)
     printf("-u <num>    Key renewal max use count, default %d\n", WOLFKM_KEY_RENEW_MAX_USES);
     printf("-t <num>    Thread pool size, default  %ld\n",
                                                  sysconf(_SC_NPROCESSORS_CONF));
-    printf("-k <pem>    TLS Server TLS Key, default %s\n", WOLFKM_ETSSVC_KEY);
-    printf("-w <pass>   TLS Server Key Password, default %s\n", WOLFKM_ETSSVC_KEY_PASSWORD);
-    printf("-c <pem>    TLS Server Certificate, default %s\n", WOLFKM_ETSSVC_CERT);
-    printf("-A <pem>    TLS CA Certificate, default %s\n", WOLFKM_ETSSVC_CA);
+    printf("-k <pem>    TLS Server Key (required)\n");
+    printf("-W <file>   TLS Server Key Password File (required)\n");
+    printf("-c <pem>    TLS Server Certificate (required)\n");
+    printf("-A <pem>    TLS CA Certificate (required)\n");
     printf("-K <keyt>   Key Type: SECP256R1, FFDHE_2048, X25519 or X448 (default %s)\n",
         wolfEtsKeyGetTypeStr(WOLFKM_ETSSVC_DEF_KEY_TYPE));
     printf("-v <file>   Vault file for key storage, default %s\n", WOLFKM_ETSSVC_VAULT);
@@ -76,26 +143,29 @@ int main(int argc, char** argv)
     FILE* pidF = 0;
     SvcInfo* etsSvc = NULL;
     word32 timeoutSec  = WOLFKM_DEFAULT_TIMEOUT;
-    const char* serverKey = WOLFKM_ETSSVC_KEY;
-    const char* serverKeyPass = WOLFKM_ETSSVC_KEY_PASSWORD;
-    const char* serverCert = WOLFKM_ETSSVC_CERT;
-    const char* caCert = WOLFKM_ETSSVC_CA;
+    const char* serverKey = NULL;
+    const char* serverKeyPassFile = NULL;
+    const char* serverCert = NULL;
+    const char* caCert = NULL;
+    char serverKeyPass[WOLFKM_PASSWORD_MAX + 1];
     SignalArg sigArgInt, sigArgTerm;
     const char* vaultFile = WOLFKM_ETSSVC_VAULT;
     const char* listenPort = WOLFKM_ETSSVC_PORT;
     EtsSvcConfig config;
 
     memset(&config, 0, sizeof(config));
+    memset(serverKeyPass, 0, sizeof(serverKeyPass));
     config.keyTypeDef = WOLFKM_ETSSVC_DEF_KEY_TYPE;
     config.renewSec = WOLFKM_KEY_RENEW_TIMEOUT;
     config.maxUseCount = WOLFKM_KEY_RENEW_MAX_USES;
 
     /* argument processing */
-    while ((ch = getopt(argc, argv, "?bis:t:o:f:l:k:w:c:A:r:u:K:v:p:P:")) != -1) {
+    opterr = 0;
+    while ((ch = getopt(argc, argv, "bis:t:o:f:l:k:W:c:A:r:u:K:v:p:P:")) != -1) {
         switch (ch) {
             case '?' :
                 Usage();
-                exit(EXIT_SUCCESS);
+                exit(optopt == '?' ? EXIT_SUCCESS : EX_USAGE);
             case 'b' :
                 daemon = 1;
                 break;
@@ -137,8 +207,8 @@ int main(int argc, char** argv)
             case 'k':
                 serverKey = optarg;
                 break;
-            case 'w':
-                serverKeyPass = optarg;
+            case 'W':
+                serverKeyPassFile = optarg;
                 break;
             case 'c':
                 serverCert = optarg;
@@ -190,6 +260,19 @@ int main(int argc, char** argv)
         }
     }
 
+    if (serverKey == NULL || serverKeyPassFile == NULL || serverCert == NULL ||
+            caCert == NULL) {
+        fprintf(stderr, "TLS key, password file, certificate and CA are required\n");
+        Usage();
+        exit(EX_USAGE);
+    }
+    ret = LoadPasswordFile(serverKeyPassFile, serverKeyPass,
+        sizeof(serverKeyPass));
+    if (ret != 0) {
+        fprintf(stderr, "TLS key password file must be non-empty and "
+            "accessible only by its owner\n");
+        exit(EX_USAGE);
+    }
     /* Create daemon */
     if (daemon) {
         if (logName == NULL) {
@@ -268,6 +351,7 @@ int main(int argc, char** argv)
 
         ret = wolfKeyMgr_LoadKeyFile(etsSvc, serverKey,
             WOLFSSL_FILETYPE_PEM, serverKeyPass);
+        wolfKeyMgr_ForceZero(serverKeyPass, sizeof(serverKeyPass));
         if (ret != 0) {
             XLOG(WOLFKM_LOG_ERROR, "Error %d loading ETS TLS key\n", ret);
             goto exit;
@@ -314,6 +398,8 @@ int main(int argc, char** argv)
     wolfKeyMgr_ShowStats(etsSvc);
 
 exit:
+    wolfKeyMgr_ForceZero(serverKeyPass, sizeof(serverKeyPass));
+
     /* Cleanup pid file */
     if (pidF) {
         fclose(pidF);

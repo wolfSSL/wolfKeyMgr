@@ -58,10 +58,30 @@ jobs:
         run: sudo make install
       - name: wolfKeyMgr make dist
         run: make dist
+      - name: verify release credential generation
+        run: |
+          mkdir dist-test
+          tar xzf wolfkeymanager-*.tar.gz -C dist-test --strip-components=1
+          cd dist-test
+          ./certs/gen-certs.sh
+          test -s certs/ca-key.pem
+          test -s certs/ca-cert.pem
+          test -s certs/client-key.pem
+          test -s certs/client-cert.pem
+          test -s certs/server-key.pem
+          test -s certs/server-cert.pem
+          test -s certs/server-rsa-key.pem
+          test -s certs/server-rsa-cert.pem
+          test -s certs/demo-password.txt
 
         # wolfKeyMgr examples
+      - name: generate demo credentials
+        run: ./certs/gen-certs.sh
       - name: start key manager service
-        run: sudo ./src/wolfkeymgr &
+        run: |
+          sudo ./src/wolfkeymgr \
+            -k ./certs/server-rsa-key.pem -W ./certs/demo-password.txt \
+            -c ./certs/server-rsa-cert.pem -A ./certs/ca-cert.pem &
       - name: run https server
         run: sudo ./examples/https/server &
       - name: run the middle box decryptor

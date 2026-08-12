@@ -1,6 +1,35 @@
 #!/bin/bash
 
+set -euo pipefail
+umask 077
+
 echo "Run from wolfkeymgr root"
+
+reject_shipped_key() {
+    key_file="$1"
+    shipped_fingerprint="$2"
+
+    if [ -f "$key_file" ]; then
+        if ! key_fingerprint=$(openssl pkey -in "$key_file" \
+                -passin pass:'wolfssl' -pubout -outform DER 2>/dev/null | \
+                openssl dgst -sha256 -r | awk '{print $1}'); then
+            echo "Refusing an existing key that could not be fingerprinted:" \
+                "$key_file" >&2
+            exit 1
+        fi
+        if [ -z "$key_fingerprint" ]; then
+            echo "Refusing an existing key with an empty fingerprint:" \
+                "$key_file" >&2
+            exit 1
+        fi
+        if [ "$key_fingerprint" = "$shipped_fingerprint" ]; then
+            echo "Refusing to reuse a credential shipped in an older release:" \
+                "$key_file" >&2
+            echo "Rotate the demo credentials with: ./certs/gen-certs.sh clean" >&2
+            exit 1
+        fi
+    fi
+}
 
 # Make sure required CA files exist and are populated
 rm -f ./certs/index.*
@@ -12,17 +41,30 @@ if [ ! -f ./certs/crlnumber ]; then
 	echo 2000 > ./certs/crlnumber
 fi
 
-if [ "$1" == "clean" ]; then
+if [ "${1:-}" == "clean" ]; then
 	rm -f ./certs/1*.pem
 	rm -f ./certs/ca-*.pem
 	rm -f ./certs/client-*.pem
 	rm -f ./certs/client-*.der
 	rm -f ./certs/server-*.pem
 	rm -f ./certs/server-*.der
+	rm -f ./certs/demo-password.txt
 	rm -f ./certs/*.old
 	
 	exit 0
 fi
+
+reject_shipped_key ./certs/ca-key.pem \
+    e69c343c84239413663520f8ccf82635b1b8954b9e7a793f2ed3b2b5fd774e5c
+reject_shipped_key ./certs/client-key.pem \
+    9ccdf5657ad96c0c14657937e012486ee0c8db8f735b1abcd28c875dd71c5d2e
+reject_shipped_key ./certs/server-key.pem \
+    27dea57285ac6798c1c47ad6da9501da76073d54524760450bc5a6001d521d38
+reject_shipped_key ./certs/server-rsa-key.pem \
+    637b068c61c194f740b93dc0828de708f5f8efb87e7ee8e7822f6b158c5a7744
+
+printf '%s\n' 'wolfssl' > ./certs/demo-password.txt
+chmod 600 ./certs/demo-password.txt
 
 # Script to generated a TLS server and client certificates
 
@@ -31,7 +73,9 @@ fi
 # Generate ECC 256-bit CA
 if [ ! -f ./certs/ca-key.pem ]; then
 	echo "Creating CA Key (SECP256R1)"
-    openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 -topk8 -v2 aes-128-cbc -outform pem -out ./certs/ca-key.pem
+    openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 \
+        -topk8 -v2 aes-128-cbc -passout pass:'wolfssl' -outform pem \
+        -out ./certs/ca-key.pem
 fi
 echo "Creating self signed root CA certificate"
 openssl req -config ./certs/ca-ecc.cnf -extensions v3_ca -x509 -nodes -key ./certs/ca-key.pem -passin pass:'wolfssl' \
@@ -41,7 +85,9 @@ openssl req -config ./certs/ca-ecc.cnf -extensions v3_ca -x509 -nodes -key ./cer
 # Client Key
 if [ ! -f ./certs/client-key.pem ]; then
 	echo "Creating Client Key (SECP256R1)"
-    openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 -topk8 -v2 aes-128-cbc -outform pem -out ./certs/client-key.pem
+    openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 \
+        -topk8 -v2 aes-128-cbc -passout pass:'wolfssl' -outform pem \
+        -out ./certs/client-key.pem
 fi
 
 # Client Cert
@@ -56,7 +102,9 @@ rm ./certs/client-cert.csr
 # Server Key
 if [ ! -f ./certs/server-key.pem ]; then
 	echo "Creating Server Key (SECP256R1)"
-    openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 -topk8 -v2 aes-128-cbc -outform pem -out ./certs/server-key.pem
+    openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 \
+        -topk8 -v2 aes-128-cbc -passout pass:'wolfssl' -outform pem \
+        -out ./certs/server-key.pem
 fi
 
 # Server Cert

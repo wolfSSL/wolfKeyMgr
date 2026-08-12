@@ -129,14 +129,16 @@ wolfKeyManager 1.1
 -r <num>    Key renewal timeout, default 3600
 -u <num>    Key renewal max use count, default 100
 -t <num>    Thread pool size, default  16
--k <pem>    TLS Server TLS Key, default ./certs/server-rsa-key.pem
--w <pass>   TLS Server Key Password, default wolfssl
--c <pem>    TLS Server Certificate, default ./certs/server-rsa-cert.pem
--A <pem>    TLS CA Certificate, default ./certs/ca-cert.pem
+-k <pem>    TLS Server Key (required)
+-W <file>   TLS Server Key Password File (required)
+-c <pem>    TLS Server Certificate (required)
+-A <pem>    TLS CA Certificate (required)
 -K <keyt>   Key Type: SECP256R1, FFDHE_2048, X25519 or X448 (default SECP256R1)
 -v <file>   Vault file for key storage, default ./wolfkeymgr.vault
 ```
 
+The key manager refuses to start unless all four TLS credential options are
+provided. The password file must be non-empty and accessible only by its owner.
 To exit the key manager use ctrl+c.
 
 ### ETS Test client
@@ -242,11 +244,18 @@ password     Private Key Password if required
 
 ## Demo Usage
 
-1. Start the key manager: `./src/wolfkeymgr`
-2. Run the HTTPS server `./examples/https/server`
-3. Run the middle-box decryption `./examples/middlebox/decrypt` and use the default parameters.
-4. Open a web browser to `https://localhost` or run the HTTP client example `./examples/https/client`.
-5. In the middle-box decryption window you will see the decrypted HTTPS traffic.
+1. Generate credentials for this demo: `./certs/gen-certs.sh`
+2. Start the key manager: `./src/wolfkeymgr -k ./certs/server-rsa-key.pem -W ./certs/demo-password.txt -c ./certs/server-rsa-cert.pem -A ./certs/ca-cert.pem`
+3. Run the HTTPS server `./examples/https/server`
+4. Run the middle-box decryption `./examples/middlebox/decrypt` and use the default parameters.
+5. Open a web browser to `https://localhost` or run the HTTP client example `./examples/https/client`.
+6. In the middle-box decryption window you will see the decrypted HTTPS traffic.
+
+The generated credentials are for local demonstration only. Deployments must
+use a private CA and unique server and client credentials. Credentials from
+older wolfKeyMgr releases must be considered compromised and rotated.
+For an existing demo directory, run `./certs/gen-certs.sh clean` before
+generating replacement credentials.
 
 Notes:
 
@@ -265,7 +274,7 @@ Notes:
 ### Demo example output
 
 ```
-% ./src/wolfkeymgr
+% ./src/wolfkeymgr -k ./certs/server-rsa-key.pem -W ./certs/demo-password.txt -c ./certs/server-rsa-cert.pem -A ./certs/ca-cert.pem
 Aug 03 15:05:21 2021: [INFO] Starting Key Manager
 Aug 03 15:05:21 2021: [INFO] 	To exit use ctrl+c
 Aug 03 15:05:21 2021: [INFO] loaded CA certificate file ./certs/ca-cert.pem
