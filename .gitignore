@@ -60,6 +60,7 @@ certs/server-*.der
 certs/server-*.pem
 certs/client-*.der
 certs/client-*.pem
+certs/demo-password.txt
 certs/serial.old
 certs/1*.pem
 tracefile.txt

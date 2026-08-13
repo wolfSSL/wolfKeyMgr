@@ -54,18 +54,6 @@
 #ifndef WOLFKM_ETSSVC_PORT
 #define WOLFKM_ETSSVC_PORT          "8119"
 #endif
-#ifndef WOLFKM_ETSSVC_KEY_PASSWORD
-#define WOLFKM_ETSSVC_KEY_PASSWORD  "wolfssl"
-#endif
-#ifndef WOLFKM_ETSSVC_CA
-#define WOLFKM_ETSSVC_CA            "./certs/ca-cert.pem"
-#endif
-#ifndef WOLFKM_ETSSVC_KEY
-#define WOLFKM_ETSSVC_KEY           "./certs/server-rsa-key.pem"
-#endif
-#ifndef WOLFKM_ETSSVC_CERT
-#define WOLFKM_ETSSVC_CERT          "./certs/server-rsa-cert.pem"
-#endif
 #ifndef WOLFKM_ETSSVC_VAULT
 #define WOLFKM_ETSSVC_VAULT         "./wolfkeymgr.vault"
 #endif

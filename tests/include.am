@@ -8,3 +8,6 @@ tests_unit_test_SOURCES = tests/unit_tests.c
 tests_unit_test_CFLAGS       = $(AM_CFLAGS)
 tests_unit_test_LDADD        = src/libwolfkeymgr.la $(LIB_STATIC_ADD)
 tests_unit_test_DEPENDENCIES = src/libwolfkeymgr.la
+
+check_SCRIPTS += tests/credential-options.test
+EXTRA_DIST += tests/credential-options.test

@@ -1,3 +1,6 @@
+# wolfKeyMgr v1.2
+* Require explicit TLS credentials and generate demo credentials locally.
+
 # wolfKeyMgr v1.1 (Nov 9, 2021)
 * Added support for x448 (curve448).
 * Added argument support to HTTP server.
