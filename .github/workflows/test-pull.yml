@@ -16,6 +16,7 @@ jobs:
   build_test:
     needs: resolve
     strategy:
+      fail-fast: false
       matrix:
         wolfssl-ref: ${{ fromJson(needs.resolve.outputs.refs) }}
     uses: ./.github/workflows/make-test.yml
@@ -23,10 +24,12 @@ jobs:
       config-args:
       make-args:
       wolfssl-ref: ${{ matrix.wolfssl-ref }}
+      config-name: default
 
   build_debug_test:
     needs: resolve
     strategy:
+      fail-fast: false
       matrix:
         wolfssl-ref: ${{ fromJson(needs.resolve.outputs.refs) }}
     uses: ./.github/workflows/make-test.yml
@@ -34,10 +37,12 @@ jobs:
       config-args: --enable-debug
       make-args:
       wolfssl-ref: ${{ matrix.wolfssl-ref }}
+      config-name: debug
 
   build_no_vault_test:
     needs: resolve
     strategy:
+      fail-fast: false
       matrix:
         wolfssl-ref: ${{ fromJson(needs.resolve.outputs.refs) }}
     uses: ./.github/workflows/make-test.yml
@@ -45,10 +50,12 @@ jobs:
       config-args: --disable-vault
       make-args:
       wolfssl-ref: ${{ matrix.wolfssl-ref }}
+      config-name: no-vault
 
   build_no_sniffer_test:
     needs: resolve
     strategy:
+      fail-fast: false
       matrix:
         wolfssl-ref: ${{ fromJson(needs.resolve.outputs.refs) }}
     uses: ./.github/workflows/make-test.yml
@@ -56,10 +63,12 @@ jobs:
       config-args: --disable-sniffer
       make-args:
       wolfssl-ref: ${{ matrix.wolfssl-ref }}
+      config-name: no-sniffer
 
   build_vault_clear_test:
     needs: resolve
     strategy:
+      fail-fast: false
       matrix:
         wolfssl-ref: ${{ fromJson(needs.resolve.outputs.refs) }}
     uses: ./.github/workflows/make-test.yml
@@ -67,10 +76,12 @@ jobs:
       config-args: --enable-vault=clear
       make-args:
       wolfssl-ref: ${{ matrix.wolfssl-ref }}
+      config-name: vault-clear
 
   build_minimal_test:
     needs: resolve
     strategy:
+      fail-fast: false
       matrix:
         wolfssl-ref: ${{ fromJson(needs.resolve.outputs.refs) }}
     uses: ./.github/workflows/make-test.yml
@@ -78,3 +89,4 @@ jobs:
       config-args: --disable-sniffer --disable-vault
       make-args:
       wolfssl-ref: ${{ matrix.wolfssl-ref }}
+      config-name: minimal

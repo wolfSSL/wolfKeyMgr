@@ -68,3 +68,6 @@ tracefile.txt
 # test files
 vault.bin
 wolfkeymgr.vault
+
+# credential-options test failure capture
+/tests/credential-options-failure/
