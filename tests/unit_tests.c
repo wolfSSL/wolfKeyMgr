@@ -84,6 +84,10 @@ static int vault_test(void)
         {2, "testname2", "testdata2"}
     };
 
+    /* start from a clean vault: otherwise this test inherits the items and
+     * the encryption mode of whatever build ran last in this tree */
+    unlink(testFile);
+
     ret = wolfVaultOpen(&ctx, testFile);
     if (ret == 0) {
         wolfVaultPrintInfo(ctx);

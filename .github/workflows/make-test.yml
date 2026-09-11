@@ -14,6 +14,12 @@ on:
         required: false
         default: master
         type: string
+      # Short label for this configuration. Used to keep the failure-log
+      # artifact names unique across the caller's matrix.
+      config-name:
+        required: false
+        default: default
+        type: string
 
 jobs:
 
@@ -28,10 +34,10 @@ jobs:
           sudo apt install -y libevent-dev libpcap-dev
 
   # pull wolfKeyMgr
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v5
 
   # wolfSSL build, check and install
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v5
         with:
           repository: wolfssl/wolfssl
           ref: ${{ inputs.wolfssl-ref }}
@@ -93,9 +99,11 @@ jobs:
   # capture logs on failure
       - name: Upload failure logs
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
-          name: wolfKeyMgr-logs
+          name: wolfKeyMgr-${{ inputs.config-name }}-wolfssl-${{ inputs.wolfssl-ref }}-logs
           path: |
             test-suite.log
+            tests/*.log
+            tests/credential-options-failure/**
           retention-days: 5

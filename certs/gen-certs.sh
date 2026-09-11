@@ -8,26 +8,43 @@ echo "Run from wolfkeymgr root"
 reject_shipped_key() {
     key_file="$1"
     shipped_fingerprint="$2"
+    pub_file="$1.pub.tmp"
 
-    if [ -f "$key_file" ]; then
-        if ! key_fingerprint=$(openssl pkey -in "$key_file" \
-                -passin pass:'wolfssl' -pubout -outform DER 2>/dev/null | \
-                openssl dgst -sha256 -r | awk '{print $1}'); then
-            echo "Refusing an existing key that could not be fingerprinted:" \
-                "$key_file" >&2
-            exit 1
-        fi
-        if [ -z "$key_fingerprint" ]; then
-            echo "Refusing an existing key with an empty fingerprint:" \
-                "$key_file" >&2
-            exit 1
-        fi
-        if [ "$key_fingerprint" = "$shipped_fingerprint" ]; then
-            echo "Refusing to reuse a credential shipped in an older release:" \
-                "$key_file" >&2
-            echo "Rotate the demo credentials with: ./certs/gen-certs.sh clean" >&2
-            exit 1
-        fi
+    if [ ! -f "$key_file" ]; then
+        return 0
+    fi
+
+    # Write the public key to a file rather than piping it into "openssl
+    # dgst". A pipeline whose reader can exit first lets the writer die of
+    # SIGPIPE, which "set -o pipefail" then reports as a fingerprint
+    # failure. That made this check intermittently take the wrong branch.
+    rm -f "$pub_file"
+    if ! openssl pkey -in "$key_file" -passin pass:'wolfssl' -pubout \
+            -outform DER -out "$pub_file" 2>/dev/null; then
+        rm -f "$pub_file"
+        echo "Refusing an existing key that could not be fingerprinted:" \
+            "$key_file" >&2
+        exit 1
+    fi
+    if ! key_fingerprint=$(openssl dgst -sha256 -r "$pub_file" \
+            | awk '{print $1}'); then
+        rm -f "$pub_file"
+        echo "Refusing an existing key that could not be fingerprinted:" \
+            "$key_file" >&2
+        exit 1
+    fi
+    rm -f "$pub_file"
+
+    if [ -z "$key_fingerprint" ]; then
+        echo "Refusing an existing key with an empty fingerprint:" \
+            "$key_file" >&2
+        exit 1
+    fi
+    if [ "$key_fingerprint" = "$shipped_fingerprint" ]; then
+        echo "Refusing to reuse a credential shipped in an older release:" \
+            "$key_file" >&2
+        echo "Rotate the demo credentials with: ./certs/gen-certs.sh clean" >&2
+        exit 1
     fi
 }
 
